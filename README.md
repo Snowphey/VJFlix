@@ -2,6 +2,10 @@
 
 Bot Discord pour organiser des watchparty de films avec gestion de listes et sondages.
 
+<p align="center" width="100%">
+    <img src="https://github.com/Snowphey/VJFlix/blob/8eae06e075a39f0e9802906fd84ecd9d86e25909/logo.jpg" alt="vjflix_logo"/ width=700>
+</p>
+
 ## Fonctionnalités
 
 ### ✅ Fonctionnalités Implémentées
