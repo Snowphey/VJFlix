@@ -27,7 +27,6 @@ module.exports = {
         
         await interaction.reply({ 
             content: `✅ Film "${title}" ajouté à la liste avec l'ID ${movie.id} !`, 
-            flags: MessageFlags.Ephemeral 
         });
         
         const settings = dataManager.getSettings();

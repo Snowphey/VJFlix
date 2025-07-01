@@ -26,8 +26,7 @@ module.exports = {
         await dataManager.saveData();
         
         await interaction.reply({ 
-            content: `🔄 Film "${unwatchedMovie.title}" (ID: ${unwatchedMovie.id}) remis dans la liste à regarder !`, 
-            flags: MessageFlags.Ephemeral 
+            content: `🔄 Film "${unwatchedMovie.title}" (ID: ${unwatchedMovie.id}) remis dans la liste à regarder !`
         });
         
         // Mettre à jour la liste dans le canal défini

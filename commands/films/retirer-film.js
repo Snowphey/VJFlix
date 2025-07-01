@@ -26,8 +26,7 @@ module.exports = {
         await dataManager.saveData();
         
         await interaction.reply({ 
-            content: `❌ Film "${removed.title}" (ID: ${removed.id}) retiré de la liste !`, 
-            flags: MessageFlags.Ephemeral 
+            content: `❌ Film "${removed.title}" (ID: ${removed.id}) retiré de la liste !`
         });
         
         // Mettre à jour la liste dans le canal défini
