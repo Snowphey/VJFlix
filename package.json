@@ -1,0 +1,22 @@
+{
+  "name": "vjflix-discord-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord pour organiser des watchparties de films",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "deploy": "node deploy-commands.js",
+    "test": "node tests/ids-system.test.js"
+  },
+  "keywords": ["discord", "bot", "movies", "watchparty"],
+  "author": "VJFlix",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "fs": "^0.0.1-security"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
