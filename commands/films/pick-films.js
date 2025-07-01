@@ -22,11 +22,101 @@ module.exports = {
                 .setRequired(false)
                 .setMinValue(1)
                 .setMaxValue(60)
+        )
+        .addStringOption(option =>
+            option.setName('ids')
+                .setDescription('Liste d\'IDs de films séparés par des virgules (ex: 1,3,5)')
+                .setRequired(false)
         ),
     async execute(interaction) {
-        const count = interaction.options.getInteger('nombre') || 5;
+        const count = interaction.options.getInteger('nombre');
         const duration = interaction.options.getInteger('duree') || 10;
-        const watchlist = dataManager.getWatchlist();
+        const idsString = interaction.options.getString('ids');
+        const watchlist = await dataManager.getWatchlist();
+        
+        // Vérifier que les options 'nombre' et 'ids' ne sont pas utilisées ensemble
+        if (count && idsString) {
+            await interaction.reply({ 
+                content: '❌ Vous ne pouvez pas utiliser les options `nombre` et `ids` en même temps. Utilisez soit `nombre` pour une sélection aléatoire, soit `ids` pour des films spécifiques.', 
+                flags: MessageFlags.Ephemeral 
+            });
+            return;
+        }
+        
+        // Variables pour les films sélectionnés
+        let selectedMovies = [];
+        
+        // Si des IDs sont spécifiés, les utiliser
+        if (idsString) {
+            // Parser les IDs
+            const idArray = idsString.split(',').map(id => id.trim()).filter(id => id !== '');
+            const parsedIds = [];
+            
+            // Valider que tous les IDs sont des nombres
+            for (const id of idArray) {
+                const parsedId = parseInt(id);
+                if (isNaN(parsedId)) {
+                    await interaction.reply({ 
+                        content: `❌ "${id}" n'est pas un ID valide. Utilisez des nombres séparés par des virgules (ex: 1,3,5).`, 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                    return;
+                }
+                parsedIds.push(parsedId);
+            }
+            
+            // Vérifier la taille
+            if (parsedIds.length < 2) {
+                await interaction.reply({ 
+                    content: '❌ Vous devez spécifier au moins 2 IDs de films.', 
+                    flags: MessageFlags.Ephemeral 
+                });
+                return;
+            }
+            
+            if (parsedIds.length > 10) {
+                await interaction.reply({ 
+                    content: '❌ Vous ne pouvez pas spécifier plus de 10 IDs de films.', 
+                    flags: MessageFlags.Ephemeral 
+                });
+                return;
+            }
+            
+            // Récupérer les films par leurs IDs
+            selectedMovies = await dataManager.getMoviesByIds(parsedIds);
+            
+            // Vérifier que tous les IDs correspondent à des films existants
+            if (selectedMovies.length !== parsedIds.length) {
+                const foundIds = selectedMovies.map(movie => movie.sequentialId);
+                const missingIds = parsedIds.filter(id => !foundIds.includes(id));
+                await interaction.reply({ 
+                    content: `❌ Les IDs suivants ne correspondent à aucun film : ${missingIds.join(', ')}`, 
+                    flags: MessageFlags.Ephemeral 
+                });
+                return;
+            }
+        } else {
+            // Sélection aléatoire classique
+            const finalCount = count || 5; // Utiliser 5 par défaut si aucun nombre n'est spécifié
+            
+            if (watchlist.length === 0) {
+                await interaction.reply({ 
+                    content: 'Aucun film dans la liste pour faire un sondage !', 
+                    flags: MessageFlags.Ephemeral 
+                });
+                return;
+            }
+
+            if (watchlist.length < finalCount) {
+                await interaction.reply({ 
+                    content: `Il n'y a que ${watchlist.length} film(s) dans la liste, impossible d'en choisir ${finalCount}.`, 
+                    flags: MessageFlags.Ephemeral 
+                });
+                return;
+            }
+
+            selectedMovies = await dataManager.getRandomMovies(finalCount);
+        }
         
         // Vérifier s'il y a déjà un sondage actif dans ce canal
         const activePollInChannel = Array.from(activePolls.values()).find(poll => poll.channelId === interaction.channelId);
@@ -47,25 +137,6 @@ module.exports = {
                 }
             }
         }
-        
-        if (watchlist.length === 0) {
-            await interaction.reply({ 
-                content: 'Aucun film dans la liste pour faire un sondage !', 
-                flags: MessageFlags.Ephemeral 
-            });
-            return;
-        }
-
-        if (watchlist.length < count) {
-            await interaction.reply({ 
-                content: `Il n'y a que ${watchlist.length} film(s) dans la liste, impossible d'en choisir ${count}.`, 
-                flags: MessageFlags.Ephemeral 
-            });
-            return;
-        }
-
-        // Sélection aléatoire
-        const selectedMovies = dataManager.getRandomMovies(count);
         const embed = EmbedUtils.createPollEmbed(selectedMovies);
 
         // Créer les boutons pour le sondage

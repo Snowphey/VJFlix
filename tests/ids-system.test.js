@@ -60,9 +60,8 @@ async function runTests() {
         dataManager.addMovie('Film 1');
         dataManager.addMovie('Film 2');
         dataManager.addMovie('Film 3');
-        await dataManager.saveData();
         
-        const watchlist = dataManager.getWatchlist();
+        const watchlist = await data.getWatchlist();
         test.assert(watchlist.length === 3, 'Devrait avoir 3 films');
         test.assertArrayEquals(
             watchlist.map(m => m.id),
@@ -74,9 +73,8 @@ async function runTests() {
     test.test('Suppression et réorganisation des IDs', async () => {
         // Partir avec 3 films (ID 1, 2, 3)
         dataManager.removeMovie(2); // Retirer le film avec ID 2
-        await dataManager.saveData();
         
-        const watchlist = dataManager.getWatchlist();
+        const watchlist = await data.getWatchlist();
         test.assert(watchlist.length === 2, 'Devrait avoir 2 films après suppression');
         test.assertArrayEquals(
             watchlist.map(m => m.id),
@@ -93,10 +91,9 @@ async function runTests() {
     test.test('Marquer comme vu et réorganisation', async () => {
         // Partir avec 2 films (ID 1, 2)
         dataManager.markAsWatched(1);
-        await dataManager.saveData();
         
-        const watchlist = dataManager.getWatchlist();
-        const watchedlist = dataManager.getWatchedlist();
+        const watchlist = await data.getWatchlist();
+        const watchedlist = await data.getWatchedlist();
         
         test.assert(watchlist.length === 1, 'La watchlist devrait avoir 1 film');
         test.assert(watchedlist.length === 1, 'La watchedlist devrait avoir 1 film');
@@ -106,12 +103,11 @@ async function runTests() {
     
     test.test('Marquer comme non-vu et réorganisation', async () => {
         // Partir avec 1 film dans watchlist (ID 1) et 1 dans watchedlist (ID 2)
-        const watchedMovies = dataManager.getWatchedlist();
+        const watchedMovies = await data.getWatchedlist();
         dataManager.markAsUnwatched(watchedMovies[0].id);
-        await dataManager.saveData();
         
-        const watchlist = dataManager.getWatchlist();
-        const watchedlist = dataManager.getWatchedlist();
+        const watchlist = await data.getWatchlist();
+        const watchedlist = await data.getWatchedlist();
         
         test.assert(watchlist.length === 2, 'La watchlist devrait avoir 2 films');
         test.assert(watchedlist.length === 0, 'La watchedlist devrait être vide');
@@ -128,20 +124,17 @@ async function runTests() {
         
         // Ajouter 5 films
         ['A', 'B', 'C', 'D', 'E'].forEach(title => dataManager.addMovie(`Film ${title}`));
-        await dataManager.saveData();
         
         // Marquer B et D comme vus
         dataManager.markAsWatched(2); // Film B
         dataManager.markAsWatched(4); // Film D (qui devient ID 3 après suppression de B)
-        await dataManager.saveData();
-        
+
         // Supprimer Film A
         dataManager.removeMovie(1);
-        await dataManager.saveData();
         
         // Vérifier l'état final
-        const watchlist = dataManager.getWatchlist();
-        const watchedlist = dataManager.getWatchedlist();
+        const watchlist = await data.getWatchlist();
+        const watchedlist = await data.getWatchedlist();
         
         test.assert(watchlist.length === 2, 'Watchlist devrait avoir 2 films (C, E)');
         test.assert(watchedlist.length === 2, 'Watchedlist devrait avoir 2 films (B, D)');
@@ -176,15 +169,14 @@ async function runTests() {
         const DataManager = require('../utils/dataManager');
         await DataManager.loadData();
         
-        const watchlist = DataManager.getWatchlist();
-        const watchedlist = DataManager.getWatchedlist();
+        const watchlist = await data.getWatchlist();
+        const watchedlist = await data.getWatchedlist();
         
         test.assert(watchlist.length === 2, 'Migration watchlist');
         test.assert(watchedlist.length === 1, 'Migration watchedlist');
         test.assert(typeof watchlist[0] === 'object' && watchlist[0].id === 1, 'Format migré watchlist');
         test.assert(typeof watchedlist[0] === 'object' && watchedlist[0].id === 3, 'Format migré watchedlist');
         
-        await DataManager.saveData();
     });
     
     await test.run();

@@ -1,38 +1,161 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
-const { updateListInChannel } = require('../../utils/listUpdater');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('retirer-film')
-        .setDescription('Retire un film de la liste')
+        .setDescription('Retire définitivement un film de la base de données')
         .addIntegerOption(option =>
             option.setName('id')
-                .setDescription('L\'ID du film à retirer')
+                .setDescription('L\'ID du film à retirer définitivement de la base de données')
                 .setRequired(true)
         ),
+
     async execute(interaction) {
         const id = interaction.options.getInteger('id');
-        
-        const removed = dataManager.removeMovie(id);
-        if (!removed) {
-            await interaction.reply({ 
-                content: `Aucun film trouvé avec l'ID ${id} !`, 
-                flags: MessageFlags.Ephemeral 
-            });
-            return;
-        }
 
-        await dataManager.saveData();
-        
-        await interaction.reply({ 
-            content: `❌ Film "${removed.title}" (ID: ${removed.id}) retiré de la liste !`
-        });
-        
-        // Mettre à jour la liste dans le canal défini
-        const settings = dataManager.getSettings();
-        if (settings.listChannelId) {
-            await updateListInChannel(interaction.client);
+        await interaction.deferReply();
+
+        try {
+            // Récupérer les informations du film avant suppression
+            const movie = await dataManager.getMovieFromDatabase(id);
+            
+            if (!movie) {
+                return await interaction.editReply({
+                    embeds: [new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setTitle('❌ Film non trouvé')
+                        .setDescription(`Aucun film trouvé avec l'ID ${id} dans la base de données.`)
+                        .setTimestamp()]
+                });
+            }
+
+            // Créer un embed de confirmation avec toutes les informations
+            const confirmEmbed = new EmbedBuilder()
+                .setColor('#ffaa00')
+                .setTitle('⚠️ Confirmation de suppression')
+                .setDescription(`Voulez-vous vraiment supprimer définitivement ce film de la base de données ?
+                
+**Cette action est irréversible et supprimera :**
+• Le film de la base de données
+• Toutes ses références dans la watchlist
+• Toutes ses références dans les films vus
+• Toutes les notations associées`)
+                .addFields(
+                    { name: 'Film à supprimer', value: `**${movie.title}**`, inline: false },
+                    { name: 'ID', value: movie.id.toString(), inline: true },
+                    { name: 'Année', value: movie.year?.toString() || 'N/A', inline: true },
+                    { name: 'TMDB ID', value: movie.tmdb || 'N/A', inline: true }
+                );
+
+            if (movie.director) {
+                confirmEmbed.addFields({ name: 'Réalisateur', value: movie.director, inline: true });
+            }
+
+            if (movie.genre && movie.genre.length > 0) {
+                confirmEmbed.addFields({ name: 'Genres', value: movie.genre.join(', '), inline: true });
+            }
+
+            if (movie.poster && movie.poster !== 'N/A') {
+                confirmEmbed.setThumbnail(movie.poster);
+            }
+
+            confirmEmbed.setTimestamp();
+
+            // Boutons de confirmation
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`confirm_delete_${id}`)
+                        .setLabel('Confirmer la suppression')
+                        .setStyle(ButtonStyle.Danger)
+                        .setEmoji('🗑️'),
+                    new ButtonBuilder()
+                        .setCustomId(`cancel_delete_${id}`)
+                        .setLabel('Annuler')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('❌')
+                );
+
+            await interaction.editReply({
+                embeds: [confirmEmbed],
+                components: [row]
+            });
+
+        } catch (error) {
+            console.error('Erreur lors de la préparation de suppression du film:', error);
+            
+            await interaction.editReply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Une erreur s\'est produite lors de la préparation de la suppression.')
+                    .setTimestamp()]
+            });
         }
     },
+
+    async handleConfirmation(interaction, movieId, confirmed) {
+        if (!confirmed) {
+            return await interaction.update({
+                embeds: [new EmbedBuilder()
+                    .setColor('#6c757d')
+                    .setTitle('❌ Suppression annulée')
+                    .setDescription('La suppression du film a été annulée.')
+                    .setTimestamp()],
+                components: []
+            });
+        }
+
+        try {
+            // Effectuer la suppression
+            const result = await dataManager.removeMovieFromDatabase(movieId);
+            
+            if (!result.success) {
+                let message = 'Erreur lors de la suppression du film.';
+                if (result.reason === 'not_found') {
+                    message = `Aucun film trouvé avec l'ID ${movieId}.`;
+                }
+                
+                return await interaction.update({
+                    embeds: [new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setTitle('❌ Erreur')
+                        .setDescription(message)
+                        .setTimestamp()],
+                    components: []
+                });
+            }
+
+            // Confirmation de suppression
+            const successEmbed = new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle('✅ Film supprimé')
+                .setDescription(`Le film **${result.movie.title}** a été supprimé définitivement de la base de données.`)
+                .addFields(
+                    { name: 'ID supprimé', value: result.movie.id.toString(), inline: true },
+                    { name: 'Titre', value: result.movie.title, inline: true },
+                    { name: 'Année', value: result.movie.year?.toString() || 'N/A', inline: true }
+                )
+                .setFooter({ text: 'Toutes les données associées (watchlist, films vus, notations) ont également été supprimées.' })
+                .setTimestamp();
+
+            await interaction.update({
+                embeds: [successEmbed],
+                components: []
+            });
+
+        } catch (error) {
+            console.error('Erreur lors de la suppression du film:', error);
+            
+            await interaction.update({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Une erreur s\'est produite lors de la suppression du film.')
+                    .setTimestamp()],
+                components: []
+            });
+        }
+    }
 };

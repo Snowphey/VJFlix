@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
-const EmbedUtils = require('../../utils/embedUtils');
+const { updateListInChannel } = require('../../utils/listUpdater');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -33,9 +33,8 @@ module.exports = {
             return;
         }
 
-        dataManager.setListChannelId(channel.id);
-        dataManager.setListMessageId(null); // Reset pour créer un nouveau message
-        await dataManager.saveData();
+        await dataManager.setListChannelId(channel.id);
+        await dataManager.setListMessageId(null); // Reset pour créer un nouveau message
 
         await interaction.reply({ 
             content: `✅ Canal de la liste défini sur ${channel} !`, 
@@ -43,17 +42,6 @@ module.exports = {
         });
 
         // Afficher immédiatement la liste dans le nouveau canal
-        const watchlist = dataManager.getWatchlist();
-        if (watchlist.length > 0) {
-            const embed = EmbedUtils.createWatchlistEmbed(watchlist);
-
-            try {
-                const message = await channel.send({ embeds: [embed] });
-                dataManager.setListMessageId(message.id);
-                await dataManager.saveData();
-            } catch (error) {
-                console.error('Erreur lors de l\'envoi de la liste dans le nouveau canal:', error);
-            }
-        }
+        await updateListInChannel(interaction.client);
     },
 };

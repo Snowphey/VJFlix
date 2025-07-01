@@ -1,258 +1,257 @@
-const fs = require('fs').promises;
-const path = require('path');
+const databaseManager = require('./databaseManager');
 
-class DataManager {
+class DataManagerAdapter {
     constructor() {
-        this.dataPath = path.join(__dirname, '..', 'data');
-        this.watchlistPath = path.join(this.dataPath, 'watchlist.json');
-        this.watchedlistPath = path.join(this.dataPath, 'watchedlist.json');
-        this.settingsPath = path.join(this.dataPath, 'settings.json');
-        
-        this.data = {
-            watchlist: [],
-            watchedlist: [],
-            settings: { listChannelId: null, listMessageId: null },
-            nextId: 1
-        };
-        
-        this.ensureDataDirectory();
-        this.loadData();
+        this.db = databaseManager;
     }
 
-    async ensureDataDirectory() {
-        try {
-            await fs.access(this.dataPath);
-        } catch {
-            await fs.mkdir(this.dataPath, { recursive: true });
+    // === MÉTHODES POUR LA WATCHLIST (anciennes) ===
+
+    async addMovie(title, user = null, movieDbId = null) {
+        // Dans le nouveau système, on ne peut ajouter que des films qui existent en base
+        if (!movieDbId) {
+            console.warn('⚠️ Tentative d\'ajout d\'un film sans ID de base de données. Utilisez addMovieToWatchlistFromDb()');
+            return false;
         }
-    }
-
-    async loadData() {
-        try {
-            const watchlistData = await fs.readFile(this.watchlistPath, 'utf8');
-            const loadedWatchlist = JSON.parse(watchlistData);
-            
-            // Migration: convertir les anciens titres en objets avec ID
-            if (loadedWatchlist.length > 0 && typeof loadedWatchlist[0] === 'string') {
-                this.data.watchlist = loadedWatchlist.map((title, index) => ({
-                    id: index + 1,
-                    title: title,
-                    addedAt: new Date().toISOString(),
-                    addedBy: null
-                }));
-            } else {
-                // S'assurer que tous les films ont le champ addedBy
-                this.data.watchlist = loadedWatchlist.map(movie => ({
-                    ...movie,
-                    addedBy: movie.addedBy || null
-                }));
-            }
-        } catch {
-            this.data.watchlist = [];
-        }
-
-        try {
-            const watchedlistData = await fs.readFile(this.watchedlistPath, 'utf8');
-            const loadedWatchedlist = JSON.parse(watchedlistData);
-            
-            // Migration: convertir les anciens titres en objets avec ID
-            if (loadedWatchedlist.length > 0 && typeof loadedWatchedlist[0] === 'string') {
-                this.data.watchedlist = loadedWatchedlist.map((title, index) => ({
-                    id: this.data.watchlist.length + index + 1,
-                    title: title,
-                    watchedAt: new Date().toISOString(),
-                    addedBy: null
-                }));
-            } else {
-                // S'assurer que tous les films ont le champ addedBy
-                this.data.watchedlist = loadedWatchedlist.map(movie => ({
-                    ...movie,
-                    addedBy: movie.addedBy || null
-                }));
-            }
-        } catch {
-            this.data.watchedlist = [];
-        }
-
-        try {
-            const settingsData = await fs.readFile(this.settingsPath, 'utf8');
-            this.data.settings = { ...this.data.settings, ...JSON.parse(settingsData) };
-        } catch {
-            this.data.settings = { listChannelId: null, listMessageId: null };
-        }
-
-        // Réorganiser les IDs au chargement pour s'assurer de la cohérence
-        this.reorganizeIds();
-    }
-
-    async saveData() {
-        // Réorganiser les IDs pour qu'ils soient consécutifs de 1 à N
-        this.reorganizeIds();
         
-        await fs.writeFile(this.watchlistPath, JSON.stringify(this.data.watchlist, null, 2));
-        await fs.writeFile(this.watchedlistPath, JSON.stringify(this.data.watchedlist, null, 2));
-        await fs.writeFile(this.settingsPath, JSON.stringify(this.data.settings, null, 2));
+        const result = await this.db.addToWatchlist(movieDbId, user);
+        if (!result.success) return false;
+        return result.movie;
     }
 
-    reorganizeIds() {
-        // Réorganiser la watchlist
-        this.data.watchlist.forEach((movie, index) => {
-            movie.id = index + 1;
-        });
-        
-        // Réorganiser la watchedlist en gardant la continuité
-        let nextId = this.data.watchlist.length + 1;
-        this.data.watchedlist.forEach((movie, index) => {
-            movie.id = nextId + index;
-        });
-        
-        // Mettre à jour nextId
-        this.data.nextId = this.data.watchlist.length + this.data.watchedlist.length + 1;
+    async removeMovie(id) {
+        return await this.db.removeFromWatchlist(id);
     }
 
-    // Méthodes pour la watchlist
-    addMovie(title, user = null) {
-        // Vérifier si le film existe déjà
-        const exists = this.data.watchlist.some(movie => movie.title.toLowerCase() === title.toLowerCase());
-        if (exists) return false;
-
-        // Le nouvel ID sera toujours le prochain disponible dans la watchlist
-        const newId = this.data.watchlist.length + 1;
-        const movie = {
-            id: newId,
-            title: title,
-            addedAt: new Date().toISOString(),
-            addedBy: user ? {
-                id: user.id,
-                username: user.username,
-                displayName: user.displayName || user.username
-            } : null
-        };
-        
-        this.data.watchlist.push(movie);
-        return movie;
+    async removeMovieFromWatchlist(id) {
+        const result = await this.db.removeFromWatchlist(id);
+        return result;
     }
 
-    removeMovie(id) {
-        const index = this.data.watchlist.findIndex(movie => movie.id === parseInt(id));
-        if (index !== -1) {
-            const removed = this.data.watchlist.splice(index, 1)[0];
-            return removed;
+    async removeMovieByTitle(title) {
+        const watchlist = await this.getWatchlist();
+        const movie = watchlist.find(m => m.title.toLowerCase() === title.toLowerCase());
+        if (movie) {
+            return await this.removeMovie(movie.id);
         }
         return null;
     }
 
-    removeMovieByTitle(title) {
-        const index = this.data.watchlist.findIndex(movie => movie.title.toLowerCase() === title.toLowerCase());
-        if (index !== -1) {
-            const removed = this.data.watchlist.splice(index, 1)[0];
-            return removed;
+    async getMovieById(sequentialId) {
+        const watchlist = await this.getWatchlist();
+        return watchlist.find(movie => movie.sequentialId === parseInt(sequentialId)) || null;
+    }
+
+    async getMovieByTitle(title) {
+        const watchlist = await this.getWatchlist();
+        return watchlist.find(movie => movie.title.toLowerCase() === title.toLowerCase()) || null;
+    }
+
+    async getWatchlist() {
+        return await this.db.getWatchlist();
+    }
+
+    async getWatchedlist() {
+        return await this.db.getWatchedMovies();
+    }
+
+    // === MÉTHODES POUR LES FILMS VUS ===
+
+    async markAsWatched(sequentialId) {
+        // Récupérer la watchlist pour trouver le vrai ID par l'ID séquentiel
+        const watchlist = await this.getWatchlist();
+        const movie = watchlist.find(m => m.sequentialId === parseInt(sequentialId));
+        
+        if (!movie) {
+            return null;
         }
+        
+        return await this.db.markAsWatched(movie.id);
+    }
+
+    async markAsWatchedByTitle(title) {
+        const movie = await this.getMovieByTitle(title);
+        if (!movie) return null;
+        return await this.markAsWatched(movie.id);
+    }
+
+    async markAsUnwatched(id) {
+        // Cette fonctionnalité nécessiterait une logique spéciale pour remettre dans la watchlist
+        // Pour l'instant, on la maintient pour compatibilité mais on la désactive
+        console.warn('markAsUnwatched non implémenté avec SQLite pour le moment');
         return null;
     }
 
-    getMovieById(id) {
-        return this.data.watchlist.find(movie => movie.id === parseInt(id));
+    async getWatchedMovieById(id) {
+        const watchedMovies = await this.getWatchedlist();
+        return watchedMovies.find(movie => movie.id === parseInt(id)) || null;
     }
 
-    getMovieByTitle(title) {
-        return this.data.watchlist.find(movie => movie.title.toLowerCase() === title.toLowerCase());
-    }
+    // === MÉTHODES UTILITAIRES ===
 
-    // Méthodes pour les films vus
-    markAsWatched(id) {
-        const movie = this.getMovieById(id);
-        if (!movie) return null;
-
-        // Sauvegarder les informations du film original
-        const originalTitle = movie.title;
-        const originalAddedAt = movie.addedAt;
-        const originalAddedBy = movie.addedBy || null;
-
-        // Retirer de la watchlist AVANT de réorganiser
-        this.removeMovie(id);
-
-        // Calculer le nouvel ID pour la watchedlist
-        const newWatchedId = this.data.watchlist.length + this.data.watchedlist.length + 1;
-
-        // Créer l'entrée pour les films vus
-        const watchedMovie = {
-            id: newWatchedId,
-            title: originalTitle,
-            addedAt: originalAddedAt,
-            addedBy: originalAddedBy,
-            watchedAt: new Date().toISOString()
-        };
-
-        // Ajouter à la liste des films vus
-        this.data.watchedlist.push(watchedMovie);
-
-        // La réorganisation se fera lors du saveData()
-        return { ...watchedMovie, title: originalTitle };
-    }
-
-    markAsWatchedByTitle(title) {
-        const movie = this.getMovieByTitle(title);
-        if (!movie) return null;
-        return this.markAsWatched(movie.id);
-    }
-
-    markAsUnwatched(id) {
-        // Trouver le film dans la liste des films vus
-        const watchedIndex = this.data.watchedlist.findIndex(movie => movie.id === parseInt(id));
-        if (watchedIndex === -1) return null;
-
-        const movie = this.data.watchedlist[watchedIndex];
-        
-        // Retirer de la liste des films vus
-        this.data.watchedlist.splice(watchedIndex, 1);
-        
-        // Remettre dans la watchlist avec un nouvel ID
-        const backToWatchlist = {
-            id: this.data.watchlist.length + 1, // Nouveau ID consécutif
-            title: movie.title,
-            addedAt: movie.addedAt,
-            addedBy: movie.addedBy || null // Préserver l'info de qui a ajouté le film
-        };
-        
-        this.data.watchlist.push(backToWatchlist);
-        
-        // La réorganisation se fera lors du saveData()
-        return backToWatchlist;
-    }
-
-    getWatchedMovieById(id) {
-        return this.data.watchedlist.find(movie => movie.id === parseInt(id));
-    }
-
-    // Getters
-    getWatchlist() {
-        return [...this.data.watchlist];
-    }
-
-    getWatchedlist() {
-        return [...this.data.watchedlist];
-    }
-
-    getSettings() {
-        return { ...this.data.settings };
-    }
-
-    // Méthodes utilitaires
-    getRandomMovies(count) {
-        if (this.data.watchlist.length < count) return null;
-        const shuffled = [...this.data.watchlist].sort(() => 0.5 - Math.random());
+    async getRandomMovies(count) {
+        const watchlist = await this.getWatchlist();
+        if (watchlist.length < count) return null;
+        const shuffled = [...watchlist].sort(() => 0.5 - Math.random());
         return shuffled.slice(0, count);
     }
 
-    // Setters pour les settings
-    setListChannelId(channelId) {
-        this.data.settings.listChannelId = channelId;
+    async getMoviesByIds(sequentialIds) {
+        const watchlist = await this.getWatchlist();
+        const movies = [];
+        for (const sequentialId of sequentialIds) {
+            const movie = watchlist.find(m => m.sequentialId === parseInt(sequentialId));
+            if (movie) {
+                movies.push(movie);
+            }
+        }
+        return movies;
     }
 
-    setListMessageId(messageId) {
-        this.data.settings.listMessageId = messageId;
+    // === MÉTHODES POUR LES PARAMÈTRES ===
+
+    async getSettings() {
+        return await this.db.getSettings();
+    }
+
+    async setListChannelId(channelId) {
+        await this.db.setSetting('listChannelId', channelId);
+    }
+
+    async setListMessageId(messageId) {
+        await this.db.setSetting('listMessageId', messageId);
+    }
+
+    async getListChannelId() {
+        return await this.db.getSetting('listChannelId');
+    }
+
+    async getListMessageId() {
+        return await this.db.getSetting('listMessageId');
+    }
+
+    // === NOUVELLES MÉTHODES POUR LA BASE DE DONNÉES ÉLARGIE ===
+
+    async addMovieToDatabase(movieData, user = null) {
+        return await this.db.addMovie(movieData, user);
+    }
+
+    async removeMovieFromDatabase(id) {
+        return await this.db.removeMovieFromDatabase(id);
+    }
+
+    async addMovieToWatchlistFromDb(movieDbId, user = null) {
+        if (!movieDbId) {
+            console.warn('⚠️ Tentative d\'ajout d\'un film sans ID de base de données. Utilisez addMovieToWatchlistFromDb()');
+            return { success: false, reason: 'no_db_id' };
+        }
+
+        const result = await this.db.addToWatchlist(movieDbId, user);
+        return result;
+    }
+
+    async removeMovieFromWatchlist(sequentialId) {
+        // Récupérer la watchlist pour trouver le vrai ID par l'ID séquentiel
+        const watchlist = await this.getWatchlist();
+        const movie = watchlist.find(m => m.sequentialId === parseInt(sequentialId));
+        
+        if (!movie) {
+            return { success: false, reason: 'not_found' };
+        }
+        
+        const result = await this.db.removeFromWatchlist(movie.id);
+        if (result) {
+            return { success: true, movie: result };
+        } else {
+            return { success: false, reason: 'database_error' };
+        }
+    }
+
+    async removeMovieFromWatchlistByDbId(id) {
+        return await this.db.removeFromWatchlist(id);
+    }
+
+    async searchMoviesInDatabase(query) {
+        return await this.db.searchMovies(query);
+    }
+
+    async getMovieFromDatabase(id) {
+        return await this.db.getMovieById(id);
+    }
+
+    async getMoviesDatabase() {
+        return await this.db.getAllMovies();
+    }
+
+    async getTotalMovieCount() {
+        return await this.db.getTotalMovieCount();
+    }
+
+    async getMoviesPaginated(offset = 0, limit = 20) {
+        return await this.db.getMoviesPaginated(offset, limit);
+    }
+
+    // === SYSTÈME DE NOTATION ===
+
+    async rateMovie(movieDbId, userId, rating) {
+        return await this.db.rateMovie(movieDbId, userId, rating);
+    }
+
+    async getUserRating(movieDbId, userId) {
+        return await this.db.getUserRating(movieDbId, userId);
+    }
+
+    async getMovieRatings(movieDbId) {
+        return await this.db.getMovieRatings(movieDbId);
+    }
+
+    async getAverageRating(movieDbId) {
+        return await this.db.getAverageRating(movieDbId);
+    }
+
+    async getTopRatedMovies(limit = 10) {
+        return await this.db.getTopRatedMovies(limit);
+    }
+
+    async getUserRatings(userId) {
+        return await this.db.getUserRatings(userId);
+    }
+
+    async getWatchlistMovieWithDetails(id) {
+        const watchlistMovie = await this.getMovieById(id);
+        if (!watchlistMovie) return null;
+
+        if (watchlistMovie.movieId) {
+            const dbMovie = await this.getMovieFromDatabase(watchlistMovie.movieId);
+            return {
+                ...watchlistMovie,
+                details: dbMovie,
+                averageRating: await this.getAverageRating(watchlistMovie.movieId)
+            };
+        }
+
+        return watchlistMovie;
+    }
+
+    // Compatibilité avec l'ancien système d'ID
+    reorganizeIds() {
+        // SQLite gère les IDs automatiquement, cette méthode est maintenue pour compatibilité
+        return Promise.resolve();
+    }
+
+    // Propriété data pour compatibilité (ATTENTION: sera asynchrone maintenant)
+    get data() {
+        console.warn('⚠️ Accès à data synchrone obsolète. Utilisez les méthodes async à la place.');
+        return {
+            watchlist: [],
+            watchedlist: [],
+            settings: {},
+            moviesDatabase: [],
+            ratings: {},
+            nextId: 1,
+            nextMovieDbId: 1
+        };
     }
 }
 
-module.exports = new DataManager();
+module.exports = new DataManagerAdapter();

@@ -7,8 +7,8 @@ module.exports = {
         .setName('afficher-liste')
         .setDescription('Affiche la liste des films à regarder et des films vus'),
     async execute(interaction) {
-        const watchlist = dataManager.getWatchlist();
-        const watchedlist = dataManager.getWatchedlist();
+        const watchlist = await dataManager.getWatchlist();
+        const watchedlist = await dataManager.getWatchedlist();
         
         const watchlistEmbed = EmbedUtils.createWatchlistEmbed(watchlist);
         const watchedlistEmbed = EmbedUtils.createWatchedListEmbed(watchedlist);

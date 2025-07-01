@@ -12,7 +12,7 @@ class EmbedUtils {
         } else {
             const movieList = watchlist.map(movie => {
                 const addedByText = movie.addedBy ? ` (ajouté par <@${movie.addedBy.id}>)` : '';
-                return `${movie.id}. ${movie.title}${addedByText}`;
+                return `${movie.sequentialId}. ${movie.title}${addedByText}`;
             }).join('\n');
             embed.setDescription(movieList);
             embed.setFooter({ text: `Total: ${watchlist.length} film(s)` });

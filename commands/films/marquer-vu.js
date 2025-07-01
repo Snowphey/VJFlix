@@ -14,7 +14,7 @@ module.exports = {
     async execute(interaction) {
         const id = interaction.options.getInteger('id');
         
-        const watchedMovie = dataManager.markAsWatched(id);
+        const watchedMovie = await data.markAsWatched(id);
         if (!watchedMovie) {
             await interaction.reply({ 
                 content: `Aucun film trouvé avec l'ID ${id} !`, 
@@ -22,15 +22,13 @@ module.exports = {
             });
             return;
         }
-
-        await dataManager.saveData();
         
         await interaction.reply({ 
             content: `✅ Film "${watchedMovie.title}" (ID: ${watchedMovie.id}) marqué comme vu !`
         });
         
         // Mettre à jour la liste dans le canal défini
-        const settings = dataManager.getSettings();
+        const settings = await dataManager.getSettings();
         if (settings.listChannelId) {
             await updateListInChannel(interaction.client);
         }
