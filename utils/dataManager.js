@@ -5,86 +5,27 @@ class DataManagerAdapter {
         this.db = databaseManager;
     }
 
-    // === MÉTHODES POUR LA WATCHLIST (anciennes) ===
-
-    async addMovie(title, user = null, movieDbId = null) {
-        // Dans le nouveau système, on ne peut ajouter que des films qui existent en base
-        if (!movieDbId) {
-            console.warn('⚠️ Tentative d\'ajout d\'un film sans ID de base de données. Utilisez addMovieToWatchlistFromDb()');
-            return false;
-        }
-        
-        const result = await this.db.addToWatchlist(movieDbId, user);
-        if (!result.success) return false;
-        return result.movie;
-    }
-
-    async removeMovie(id) {
-        return await this.db.removeFromWatchlist(id);
-    }
-
-    async removeMovieFromWatchlist(id) {
-        const result = await this.db.removeFromWatchlist(id);
-        return result;
-    }
-
-    async removeMovieByTitle(title) {
-        const watchlist = await this.getWatchlist();
-        const movie = watchlist.find(m => m.title.toLowerCase() === title.toLowerCase());
-        if (movie) {
-            return await this.removeMovie(movie.id);
-        }
-        return null;
-    }
-
-    async getMovieById(sequentialId) {
-        const watchlist = await this.getWatchlist();
-        return watchlist.find(movie => movie.sequentialId === parseInt(sequentialId)) || null;
-    }
-
-    async getMovieByTitle(title) {
-        const watchlist = await this.getWatchlist();
-        return watchlist.find(movie => movie.title.toLowerCase() === title.toLowerCase()) || null;
-    }
-
     async getWatchlist() {
         return await this.db.getWatchlist();
     }
 
-    async getWatchedlist() {
+    async getWatchedMovies() {
         return await this.db.getWatchedMovies();
     }
 
     // === MÉTHODES POUR LES FILMS VUS ===
 
-    async markAsWatched(sequentialId) {
-        // Récupérer la watchlist pour trouver le vrai ID par l'ID séquentiel
-        const watchlist = await this.getWatchlist();
-        const movie = watchlist.find(m => m.sequentialId === parseInt(sequentialId));
-        
-        if (!movie) {
-            return null;
-        }
-        
-        return await this.db.markAsWatched(movie.id);
+    async markAsWatched(movieId, user = null) {
+        return await this.db.markAsWatched(movieId, user);
     }
 
-    async markAsWatchedByTitle(title) {
-        const movie = await this.getMovieByTitle(title);
-        if (!movie) return null;
-        return await this.markAsWatched(movie.id);
+    async markAsUnwatched(movieId, user = null) {
+        return await this.db.markAsUnwatched(movieId, user);
     }
 
-    async markAsUnwatched(id) {
-        // Cette fonctionnalité nécessiterait une logique spéciale pour remettre dans la watchlist
-        // Pour l'instant, on la maintient pour compatibilité mais on la désactive
-        console.warn('markAsUnwatched non implémenté avec SQLite pour le moment');
-        return null;
-    }
-
-    async getWatchedMovieById(id) {
-        const watchedMovies = await this.getWatchedlist();
-        return watchedMovies.find(movie => movie.id === parseInt(id)) || null;
+    async getWatchedMovieById(movieId) {
+        const watchedMovies = await this.getWatchedMovies();
+        return watchedMovies.find(movie => movie.id === parseInt(movieId)) || null;
     }
 
     // === MÉTHODES UTILITAIRES ===
@@ -96,11 +37,11 @@ class DataManagerAdapter {
         return shuffled.slice(0, count);
     }
 
-    async getMoviesByIds(sequentialIds) {
+    async getMoviesByIds(ids) {
         const watchlist = await this.getWatchlist();
         const movies = [];
-        for (const sequentialId of sequentialIds) {
-            const movie = watchlist.find(m => m.sequentialId === parseInt(sequentialId));
+        for (const id of ids) {
+            const movie = watchlist.find(m => m.id === parseInt(id));
             if (movie) {
                 movies.push(movie);
             }
@@ -132,17 +73,17 @@ class DataManagerAdapter {
 
     // === NOUVELLES MÉTHODES POUR LA BASE DE DONNÉES ÉLARGIE ===
 
-    async addMovieToDatabase(movieData, user = null) {
+    async addMovie(movieData, user = null) {
         return await this.db.addMovie(movieData, user);
     }
 
-    async removeMovieFromDatabase(id) {
-        return await this.db.removeMovieFromDatabase(id);
+    async removeMovie(id) {
+        return await this.db.removeMovie(id);
     }
 
-    async addMovieToWatchlistFromDb(movieDbId, user = null) {
+    async addMovieToWatchlist(movieDbId, user = null) {
         if (!movieDbId) {
-            console.warn('⚠️ Tentative d\'ajout d\'un film sans ID de base de données. Utilisez addMovieToWatchlistFromDb()');
+            console.warn('⚠️ Tentative d\'ajout d\'un film sans ID de base de données. Utilisez addMovie()');
             return { success: false, reason: 'no_db_id' };
         }
 
@@ -150,25 +91,14 @@ class DataManagerAdapter {
         return result;
     }
 
-    async removeMovieFromWatchlist(sequentialId) {
-        // Récupérer la watchlist pour trouver le vrai ID par l'ID séquentiel
-        const watchlist = await this.getWatchlist();
-        const movie = watchlist.find(m => m.sequentialId === parseInt(sequentialId));
-        
-        if (!movie) {
-            return { success: false, reason: 'not_found' };
+    async removeMovieFromWatchlist(movieDbId, user = null) {
+        if (!movieDbId) {
+            console.warn('⚠️ Tentative de suppression d\'un film sans ID de base de données. Utilisez addMovie()');
+            return { success: false, reason: 'no_db_id' };
         }
-        
-        const result = await this.db.removeFromWatchlist(movie.id);
-        if (result) {
-            return { success: true, movie: result };
-        } else {
-            return { success: false, reason: 'database_error' };
-        }
-    }
 
-    async removeMovieFromWatchlistByDbId(id) {
-        return await this.db.removeFromWatchlist(id);
+        const result = await this.db.removeFromWatchlist(movieDbId);
+        return result;
     }
 
     async searchMoviesInDatabase(query) {
@@ -191,10 +121,40 @@ class DataManagerAdapter {
         return await this.db.getMoviesPaginated(offset, limit);
     }
 
+    async getMoviesNotInWatchlist(offset = 0, limit = 20) {
+        return await this.db.getMoviesNotInWatchlist(offset, limit);
+    }
+
+    async searchMoviesNotInWatchlist(query) {
+        return await this.db.searchMoviesNotInWatchlist(query);
+    }
+
+    // === MÉTHODES POUR LES FILMS DE LA WATCHLIST ===
+    
+    async getUnwatchedWatchlistMovies(offset = 0, limit = 20) {
+        return await this.db.getUnwatchedWatchlistMovies(offset, limit);
+    }
+
+    async searchUnwatchedWatchlistMovies(query) {
+        return await this.db.searchUnwatchedWatchlistMovies(query);
+    }
+
+    async getWatchedWatchlistMovies(offset = 0, limit = 20) {
+        return await this.db.getWatchedWatchlistMovies(offset, limit);
+    }
+
+    async searchWatchedWatchlistMovies(query) {
+        return await this.db.searchWatchedWatchlistMovies(query);
+    }
+
     // === SYSTÈME DE NOTATION ===
 
     async rateMovie(movieDbId, userId, rating) {
         return await this.db.rateMovie(movieDbId, userId, rating);
+    }
+
+    async removeUserRating(movieDbId, userId) {
+        return await this.db.removeUserRating(movieDbId, userId);
     }
 
     async getUserRating(movieDbId, userId) {
@@ -215,42 +175,6 @@ class DataManagerAdapter {
 
     async getUserRatings(userId) {
         return await this.db.getUserRatings(userId);
-    }
-
-    async getWatchlistMovieWithDetails(id) {
-        const watchlistMovie = await this.getMovieById(id);
-        if (!watchlistMovie) return null;
-
-        if (watchlistMovie.movieId) {
-            const dbMovie = await this.getMovieFromDatabase(watchlistMovie.movieId);
-            return {
-                ...watchlistMovie,
-                details: dbMovie,
-                averageRating: await this.getAverageRating(watchlistMovie.movieId)
-            };
-        }
-
-        return watchlistMovie;
-    }
-
-    // Compatibilité avec l'ancien système d'ID
-    reorganizeIds() {
-        // SQLite gère les IDs automatiquement, cette méthode est maintenue pour compatibilité
-        return Promise.resolve();
-    }
-
-    // Propriété data pour compatibilité (ATTENTION: sera asynchrone maintenant)
-    get data() {
-        console.warn('⚠️ Accès à data synchrone obsolète. Utilisez les méthodes async à la place.');
-        return {
-            watchlist: [],
-            watchedlist: [],
-            settings: {},
-            moviesDatabase: [],
-            ratings: {},
-            nextId: 1,
-            nextMovieDbId: 1
-        };
     }
 }
 

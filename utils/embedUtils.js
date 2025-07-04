@@ -10,9 +10,9 @@ class EmbedUtils {
         if (watchlist.length === 0) {
             embed.setDescription('Aucun film dans la liste pour le moment.\nUtilisez `/ajouter-film` pour en ajouter !');
         } else {
-            const movieList = watchlist.map(movie => {
+            const movieList = watchlist.map((movie, index) => {
                 const addedByText = movie.addedBy ? ` (ajouté par <@${movie.addedBy.id}>)` : '';
-                return `${movie.sequentialId}. ${movie.title}${addedByText}`;
+                return `${index + 1}. ${movie.title}${addedByText}`;
             }).join('\n');
             embed.setDescription(movieList);
             embed.setFooter({ text: `Total: ${watchlist.length} film(s)` });
@@ -30,9 +30,9 @@ class EmbedUtils {
         if (watchedlist.length === 0) {
             embed.setDescription('Aucun film marqué comme vu pour le moment.');
         } else {
-            const movieList = watchedlist.map(movie => {
+            const movieList = watchedlist.map((movie, index) => {
                 const addedByText = movie.addedBy ? ` (ajouté par <@${movie.addedBy.id}>)` : '';
-                return `${movie.id}. ${movie.title}${addedByText}`;
+                return `${index + 1}. ${movie.title}${addedByText}`;
             }).join('\n');
             embed.setDescription(movieList);
             embed.setFooter({ text: `Total: ${watchedlist.length} film(s) vu(s)` });

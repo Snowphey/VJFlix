@@ -12,7 +12,7 @@ async function updateListInChannel(client) {
     try {
         const channel = await client.channels.fetch(settings.listChannelId);
         const watchlist = await dataManager.getWatchlist();
-        const watchedlist = await dataManager.getWatchedlist();
+        const watchedlist = await dataManager.getWatchedMovies();
         
         const watchlistEmbed = EmbedUtils.createWatchlistEmbed(watchlist);
         const watchedlistEmbed = EmbedUtils.createWatchedListEmbed(watchedlist);

@@ -24,20 +24,84 @@ module.exports = {
                 .setMaxValue(60)
         )
         .addStringOption(option =>
-            option.setName('ids')
-                .setDescription('Liste d\'IDs de films séparés par des virgules (ex: 1,3,5)')
+            option.setName('film1')
+                .setDescription('Premier film à inclure dans le sondage')
                 .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film2')
+                .setDescription('Deuxième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film3')
+                .setDescription('Troisième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film4')
+                .setDescription('Quatrième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film5')
+                .setDescription('Cinquième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film6')
+                .setDescription('Sixième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film7')
+                .setDescription('Septième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film8')
+                .setDescription('Huitième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film9')
+                .setDescription('Neuvième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('film10')
+                .setDescription('Dixième film à inclure dans le sondage')
+                .setRequired(false)
+                .setAutocomplete(true)
         ),
     async execute(interaction) {
         const count = interaction.options.getInteger('nombre');
         const duration = interaction.options.getInteger('duree') || 10;
-        const idsString = interaction.options.getString('ids');
+        
+        // Récupérer tous les films spécifiés
+        const specifiedMovies = [];
+        for (let i = 1; i <= 10; i++) {
+            const filmId = interaction.options.getString(`film${i}`);
+            if (filmId) {
+                specifiedMovies.push(parseInt(filmId));
+            }
+        }
+        
         const watchlist = await dataManager.getWatchlist();
         
-        // Vérifier que les options 'nombre' et 'ids' ne sont pas utilisées ensemble
-        if (count && idsString) {
+        // Vérifier que les options 'nombre' et les films spécifiques ne sont pas utilisées ensemble
+        if (count && specifiedMovies.length > 0) {
             await interaction.reply({ 
-                content: '❌ Vous ne pouvez pas utiliser les options `nombre` et `ids` en même temps. Utilisez soit `nombre` pour une sélection aléatoire, soit `ids` pour des films spécifiques.', 
+                content: '❌ Vous ne pouvez pas utiliser l\'option `nombre` avec des films spécifiques. Utilisez soit `nombre` pour une sélection aléatoire, soit sélectionnez des films spécifiques.', 
                 flags: MessageFlags.Ephemeral 
             });
             return;
@@ -46,51 +110,26 @@ module.exports = {
         // Variables pour les films sélectionnés
         let selectedMovies = [];
         
-        // Si des IDs sont spécifiés, les utiliser
-        if (idsString) {
-            // Parser les IDs
-            const idArray = idsString.split(',').map(id => id.trim()).filter(id => id !== '');
-            const parsedIds = [];
-            
-            // Valider que tous les IDs sont des nombres
-            for (const id of idArray) {
-                const parsedId = parseInt(id);
-                if (isNaN(parsedId)) {
-                    await interaction.reply({ 
-                        content: `❌ "${id}" n'est pas un ID valide. Utilisez des nombres séparés par des virgules (ex: 1,3,5).`, 
-                        flags: MessageFlags.Ephemeral 
-                    });
-                    return;
-                }
-                parsedIds.push(parsedId);
-            }
-            
+        // Si des films spécifiques sont sélectionnés, les utiliser
+        if (specifiedMovies.length > 0) {
             // Vérifier la taille
-            if (parsedIds.length < 2) {
+            if (specifiedMovies.length < 2) {
                 await interaction.reply({ 
-                    content: '❌ Vous devez spécifier au moins 2 IDs de films.', 
-                    flags: MessageFlags.Ephemeral 
-                });
-                return;
-            }
-            
-            if (parsedIds.length > 10) {
-                await interaction.reply({ 
-                    content: '❌ Vous ne pouvez pas spécifier plus de 10 IDs de films.', 
+                    content: '❌ Vous devez spécifier au moins 2 films pour créer un sondage.', 
                     flags: MessageFlags.Ephemeral 
                 });
                 return;
             }
             
             // Récupérer les films par leurs IDs
-            selectedMovies = await dataManager.getMoviesByIds(parsedIds);
+            selectedMovies = await dataManager.getMoviesByIds(specifiedMovies);
             
             // Vérifier que tous les IDs correspondent à des films existants
-            if (selectedMovies.length !== parsedIds.length) {
-                const foundIds = selectedMovies.map(movie => movie.sequentialId);
-                const missingIds = parsedIds.filter(id => !foundIds.includes(id));
+            if (selectedMovies.length !== specifiedMovies.length) {
+                const foundIds = selectedMovies.map(movie => movie.id);
+                const missingIds = specifiedMovies.filter(id => !foundIds.includes(id));
                 await interaction.reply({ 
-                    content: `❌ Les IDs suivants ne correspondent à aucun film : ${missingIds.join(', ')}`, 
+                    content: `❌ Certains films sélectionnés ne sont plus disponibles dans la liste.`, 
                     flags: MessageFlags.Ephemeral 
                 });
                 return;
@@ -212,6 +251,45 @@ module.exports = {
         setTimeout(async () => {
             await endPoll(interaction.client, message.id);
         }, duration * 60 * 1000);
+    },
+
+    async autocomplete(interaction) {
+        const focusedValue = interaction.options.getFocused();
+        const focusedOption = interaction.options.getFocused(true);
+        
+        // Récupérer tous les films de la watchlist
+        const watchlist = await dataManager.getWatchlist();
+        
+        // Récupérer les films déjà sélectionnés dans les autres options (pas celle en cours de saisie)
+        const alreadySelected = [];
+        for (let i = 1; i <= 10; i++) {
+            const optionName = `film${i}`;
+            if (optionName !== focusedOption.name) { // Exclure l'option actuellement en cours de saisie
+                const filmId = interaction.options.getString(optionName);
+                if (filmId) {
+                    alreadySelected.push(parseInt(filmId));
+                }
+            }
+        }
+        
+        // Exclure les films déjà sélectionnés
+        const availableMovies = watchlist.filter(movie => !alreadySelected.includes(movie.id));
+        
+        // Filtrer en fonction de la saisie de l'utilisateur
+        const filtered = focusedValue ? 
+            availableMovies.filter(movie => 
+                movie.title.toLowerCase().includes(focusedValue.toLowerCase()) ||
+                movie.originalTitle?.toLowerCase().includes(focusedValue.toLowerCase())
+            ) : 
+            availableMovies;
+        
+        // Limiter à 25 résultats (limite Discord)
+        const choices = filtered.slice(0, 25).map(movie => ({
+            name: `${movie.title} (${movie.year || 'Année inconnue'})`,
+            value: movie.id.toString()
+        }));
+        
+        await interaction.respond(choices);
     },
 };
 

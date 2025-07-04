@@ -5,14 +5,45 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('retirer-film')
         .setDescription('Retire définitivement un film de la base de données')
-        .addIntegerOption(option =>
-            option.setName('id')
-                .setDescription('L\'ID du film à retirer définitivement de la base de données')
+        .addStringOption(option =>
+            option.setName('film')
+                .setDescription('Sélectionnez un film à supprimer définitivement')
                 .setRequired(true)
+                .setAutocomplete(true)
         ),
 
+    async autocomplete(interaction) {
+        const focusedValue = interaction.options.getFocused();
+        
+        try {
+            if (!focusedValue) {
+                // Récupérer les films récents de la base de données
+                const movies = await dataManager.getMoviesPaginated(0, 25);
+                const choices = movies.map(movie => ({
+                    name: `${movie.title} (${movie.year || 'N/A'})`,
+                    value: movie.id.toString()
+                }));
+                
+                await interaction.respond(choices);
+                return;
+            }
+            
+            // Rechercher les films correspondants dans la base de données
+            const movies = await dataManager.searchMoviesInDatabase(focusedValue);
+            const choices = movies.slice(0, 25).map(movie => ({
+                name: `${movie.title} (${movie.year || 'N/A'})`,
+                value: movie.id.toString()
+            }));
+            
+            await interaction.respond(choices);
+        } catch (error) {
+            console.error('Erreur lors de l\'autocomplétion:', error);
+            await interaction.respond([]);
+        }
+    },
+
     async execute(interaction) {
-        const id = interaction.options.getInteger('id');
+        const id = parseInt(interaction.options.getString('film'));
 
         await interaction.deferReply();
 
@@ -25,7 +56,7 @@ module.exports = {
                     embeds: [new EmbedBuilder()
                         .setColor('#ff0000')
                         .setTitle('❌ Film non trouvé')
-                        .setDescription(`Aucun film trouvé avec l'ID ${id} dans la base de données.`)
+                        .setDescription(`Film introuvable dans la base de données.`)
                         .setTimestamp()]
                 });
             }
@@ -109,7 +140,7 @@ module.exports = {
 
         try {
             // Effectuer la suppression
-            const result = await dataManager.removeMovieFromDatabase(movieId);
+            const result = await dataManager.removeMovie(movieId);
             
             if (!result.success) {
                 let message = 'Erreur lors de la suppression du film.';

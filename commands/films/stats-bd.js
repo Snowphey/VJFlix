@@ -12,7 +12,7 @@ module.exports = {
         try {
             // Récupérer les statistiques
             const watchlist = await dataManager.getWatchlist();
-            const watchedMovies = await dataManager.getWatchedlist();
+            const watchedMovies = await dataManager.getWatchedMovies();
             const allMovies = await dataManager.getMoviesDatabase();
             const topRated = await dataManager.getTopRatedMovies(3);
 

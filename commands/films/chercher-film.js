@@ -6,80 +6,60 @@ module.exports = {
         .setName('chercher-film')
         .setDescription('Chercher un film dans la base de données')
         .addStringOption(option =>
-            option.setName('recherche')
-                .setDescription('Titre, réalisateur ou acteur à rechercher')
-                .setRequired(true)),
+            option.setName('film')
+                .setDescription('Sélectionnez un film pour voir ses détails')
+                .setRequired(true)
+                .setAutocomplete(true)),
+
+    async autocomplete(interaction) {
+        const focusedValue = interaction.options.getFocused();
+        
+        try {
+            if (!focusedValue) {
+                // Récupérer les films récents de la base de données
+                const movies = await dataManager.getMoviesPaginated(0, 25);
+                const choices = movies.map(movie => ({
+                    name: `${movie.title} (${movie.year || 'N/A'})`,
+                    value: movie.id.toString()
+                }));
+                
+                await interaction.respond(choices);
+                return;
+            }
+            
+            // Rechercher les films correspondants dans la base de données
+            const movies = await dataManager.searchMoviesInDatabase(focusedValue);
+            const choices = movies.slice(0, 25).map(movie => ({
+                name: `${movie.title} (${movie.year || 'N/A'})`,
+                value: movie.id.toString()
+            }));
+            
+            await interaction.respond(choices);
+        } catch (error) {
+            console.error('Erreur lors de l\'autocomplétion:', error);
+            await interaction.respond([]);
+        }
+    },
 
     async execute(interaction) {
-        const query = interaction.options.getString('recherche');
+        const movieId = parseInt(interaction.options.getString('film'));
         
-        // Rechercher dans la base de données
-        const results = await dataManager.searchMoviesInDatabase(query);
+        // Récupérer le film par son ID
+        const movie = await dataManager.getMovieFromDatabase(movieId);
         
-        if (results.length === 0) {
+        if (!movie) {
             return await interaction.reply({
                 embeds: [new EmbedBuilder()
                     .setColor('#ff0000')
-                    .setTitle('❌ Aucun résultat')
-                    .setDescription(`Aucun film trouvé pour la recherche : "${query}"`)
+                    .setTitle('❌ Film non trouvé')
+                    .setDescription(`Film introuvable dans la base de données.`)
                     .setTimestamp()],
                 flags: MessageFlags.Ephemeral
             });
         }
 
-        if (results.length === 1) {
-            // Un seul résultat, affichage détaillé
-            return await this.displayMovieDetails(interaction, results[0]);
-        }
-
-        // Plusieurs résultats, affichage liste
-        await this.displaySearchResults(interaction, results, query);
-    },
-
-    async displaySearchResults(interaction, results, query) {
-        const embed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle(`🔍 Résultats de recherche : "${query}"`)
-            .setDescription(`${results.length} film(s) trouvé(s)`)
-            .setTimestamp();
-
-        // Limiter à 10 résultats
-        const limitedResults = results.slice(0, 10);
-        
-        for (const movie of limitedResults) {
-            const averageRating = await dataManager.getAverageRating(movie.id);
-            const ratingText = averageRating 
-                ? `⭐ ${averageRating.average}/5 (${averageRating.count} vote${averageRating.count > 1 ? 's' : ''})`
-                : 'Pas encore noté';
-
-            embed.addFields({
-                name: `${movie.title} (${movie.year || 'N/A'})`,
-                value: `ID: ${movie.id} | ${ratingText}\nRéalisateur: ${movie.director || 'N/A'}`,
-                inline: false
-            });
-        }
-
-        if (results.length > 10) {
-            embed.setFooter({ text: `Affichage des 10 premiers résultats sur ${results.length}` });
-        }
-
-        // Boutons pour voir les détails
-        const buttons = [];
-        for (let i = 0; i < Math.min(limitedResults.length, 5); i++) {
-            buttons.push(
-                new ButtonBuilder()
-                    .setCustomId(`movie_details_${limitedResults[i].id}`)
-                    .setLabel(`Détails #${limitedResults[i].id}`)
-                    .setStyle(ButtonStyle.Secondary)
-            );
-        }
-
-        const row = new ActionRowBuilder().addComponents(buttons);
-
-        await interaction.reply({
-            embeds: [embed],
-            components: buttons.length > 0 ? [row] : []
-        });
+        // Afficher les détails du film
+        await this.displayMovieDetails(interaction, movie);
     },
 
     async displayMovieDetails(interaction, movie) {
@@ -141,12 +121,7 @@ module.exports = {
                     .setCustomId(`add_to_watchlist_${movie.id}`)
                     .setLabel('Ajouter à la watchlist')
                     .setStyle(ButtonStyle.Primary)
-                    .setEmoji('📝'),
-                new ButtonBuilder()
-                    .setCustomId(`rate_movie_${movie.id}`)
-                    .setLabel('Noter ce film')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('⭐')
+                    .setEmoji('📝')
             );
 
         await interaction.reply({

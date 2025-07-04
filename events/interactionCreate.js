@@ -1,4 +1,7 @@
-const { Events, MessageFlags } = require('discord.js');
+const { Events, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const dataManager = require('../utils/dataManager');
+const tmdbService = require('../utils/tmdbService');
+const { updateListInChannel } = require('../utils/listUpdater');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -28,6 +31,20 @@ module.exports = {
                         flags: MessageFlags.Ephemeral 
                     });
                 }
+            }
+        } else if (interaction.isAutocomplete()) {
+            const command = interaction.client.commands.get(interaction.commandName);
+
+            if (!command) {
+                console.error(`Aucune commande d'autocomplétion correspondant à ${interaction.commandName} n'a été trouvée.`);
+                return;
+            }
+
+            try {
+                await command.autocomplete(interaction);
+            } catch (error) {
+                console.error(`Erreur lors de l'autocomplétion de ${interaction.commandName}:`);
+                console.error(error);
             }
         } else if (interaction.isButton()) {
             // Gérer les votes pour les sondages
@@ -141,25 +158,36 @@ module.exports = {
                         flags: MessageFlags.Ephemeral 
                     });
                 }
-            } else if (interaction.customId.startsWith('rate_movie_')) {
-                // Interface de notation rapide
+            } else if (interaction.customId.startsWith('rate_')) {
+                // Gérer les notations de films
                 try {
-                    await this.handleQuickRating(interaction);
+                    await this.handleMovieRating(interaction);
                 } catch (error) {
-                    console.error('Erreur lors de la notation:', error);
+                    console.error('Erreur lors de la notation du film:', error);
                     await interaction.reply({ 
-                        content: 'Une erreur est survenue lors de la notation.', 
+                        content: 'Une erreur est survenue lors de la notation du film.', 
                         flags: MessageFlags.Ephemeral 
                     });
                 }
-            } else if (interaction.customId.startsWith('rate_') && interaction.customId.split('_').length === 3) {
-                // Bouton de notation directe (rate_movieId_rating)
+            } else if (interaction.customId.startsWith('cancel_rating_')) {
+                // Annuler la notation
                 try {
-                    await this.handleDirectRating(interaction);
+                    await this.handleCancelRating(interaction);
                 } catch (error) {
-                    console.error('Erreur lors de la notation directe:', error);
+                    console.error('Erreur lors de l\'annulation de la notation:', error);
                     await interaction.reply({ 
-                        content: 'Une erreur est survenue lors de la notation.', 
+                        content: 'Une erreur est survenue.', 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
+            } else if (interaction.customId.startsWith('remove_rating_')) {
+                // Supprimer la notation
+                try {
+                    await this.handleRemoveRating(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de la suppression de la notation:', error);
+                    await interaction.reply({ 
+                        content: 'Une erreur est survenue lors de la suppression de la note.', 
                         flags: MessageFlags.Ephemeral 
                     });
                 }
@@ -190,13 +218,10 @@ module.exports = {
     },
 
     async handleAddToWatchlist(interaction) {
-        const { EmbedBuilder } = require('discord.js');
-        const dataManager = require('../utils/dataManager');
-        const { updateListInChannel } = require('../utils/listUpdater');
 
         const movieDbId = parseInt(interaction.customId.split('_')[3]);
         
-        const result = await dataManager.addMovieToWatchlistFromDb(movieDbId, interaction.user);
+        const result = await dataManager.addMovieToWatchlist(movieDbId, interaction.user);
         
         if (!result.success) {
             let message = 'Erreur lors de l\'ajout à la watchlist.';
@@ -216,16 +241,11 @@ module.exports = {
             });
         }
         
-        // Récupérer la watchlist mise à jour pour obtenir l'ID séquentiel
-        const watchlist = await dataManager.getWatchlist();
-        const addedMovie = watchlist.find(m => m.id === result.movie.id);
-        const sequentialId = addedMovie ? addedMovie.sequentialId : result.movie.id;
-
         await interaction.reply({
             embeds: [new EmbedBuilder()
                 .setColor('#00ff00')
                 .setTitle('✅ Ajouté à la watchlist')
-                .setDescription(`**${result.movie.title}** a été ajouté à la watchlist avec l'ID ${sequentialId} !`)
+                .setDescription(`**${result.movie.title}** a été ajouté à la watchlist !`)
                 .setTimestamp()]
         });
 
@@ -234,8 +254,6 @@ module.exports = {
     },
 
     async handleMovieDetails(interaction) {
-        const { EmbedBuilder } = require('discord.js');
-        const dataManager = require('../utils/dataManager');
 
         const movieId = parseInt(interaction.customId.split('_')[2]);
         const movie = await dataManager.getMovieFromDatabase(movieId);
@@ -256,8 +274,6 @@ module.exports = {
     },
 
     async handleQuickRating(interaction) {
-        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-        const dataManager = require('../utils/dataManager');
 
         const movieId = parseInt(interaction.customId.split('_')[2]);
         const movie = await dataManager.getMovieFromDatabase(movieId);
@@ -308,8 +324,6 @@ module.exports = {
     },
 
     async handleDirectRating(interaction) {
-        const { EmbedBuilder } = require('discord.js');
-        const dataManager = require('../utils/dataManager');
 
         const parts = interaction.customId.split('_');
         const movieId = parseInt(parts[1]);
@@ -367,8 +381,6 @@ module.exports = {
     },
 
     async handleMovieListPagination(interaction) {
-        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-        const dataManager = require('../utils/dataManager');
 
         const page = parseInt(interaction.customId.split('_')[3]);
         const itemsPerPage = 20;
@@ -462,8 +474,6 @@ module.exports = {
     },
 
     async handleTMDbMovieSelection(interaction) {
-        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-        const tmdbService = require('../utils/tmdbService');
 
         await interaction.deferUpdate();
 
@@ -505,7 +515,6 @@ module.exports = {
     },
 
     async showMovieConfirmation(interaction, movieData) {
-        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
         // Créer l'embed de confirmation avec tous les détails
         const embed = new EmbedBuilder()
@@ -565,7 +574,6 @@ module.exports = {
     },
 
     async handleCancelMovieSearch(interaction) {
-        const { EmbedBuilder } = require('discord.js');
 
         await interaction.update({
             embeds: [new EmbedBuilder()
@@ -578,9 +586,6 @@ module.exports = {
     },
 
     async handleConfirmAddMovie(interaction) {
-        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-        const tmdbService = require('../utils/tmdbService');
-        const dataManager = require('../utils/dataManager');
 
         await interaction.deferUpdate();
 
@@ -698,7 +703,6 @@ module.exports = {
     },
 
     async handleCancelMovieAdd(interaction) {
-        const { EmbedBuilder } = require('discord.js');
 
         await interaction.update({
             embeds: [new EmbedBuilder()
@@ -708,5 +712,176 @@ module.exports = {
                 .setTimestamp()],
             components: []
         });
+    },
+
+    async handleMovieRating(interaction) {
+
+        // Extraire l'ID du film et la note depuis le customId
+        const [, movieDbId, rating] = interaction.customId.split('_');
+        const userId = interaction.user.id;
+        const ratingValue = parseInt(rating);
+
+        // Vérifier si le film existe
+        const movie = await dataManager.getMovieFromDatabase(parseInt(movieDbId));
+        if (!movie) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Film non trouvé')
+                    .setDescription('Film introuvable dans la base de données.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        // Noter le film
+        const result = await dataManager.rateMovie(parseInt(movieDbId), userId, ratingValue);
+        
+        if (!result.success) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de noter le film.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        // Obtenir les nouvelles statistiques
+        const averageRating = await dataManager.getAverageRating(parseInt(movieDbId));
+        const starsDisplay = '⭐'.repeat(ratingValue) + '☆'.repeat(5 - ratingValue);
+
+        const embed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('✅ Film noté !')
+            .setDescription(`Vous avez donné **${ratingValue}/5** étoiles à **${movie.title}**`)
+            .addFields(
+                { name: 'Votre note', value: starsDisplay, inline: true },
+                { name: 'Film', value: movie.title, inline: true }
+            );
+
+        if (movie.year) {
+            embed.addFields({ name: 'Année', value: movie.year.toString(), inline: true });
+        }
+
+        if (averageRating) {
+            const avgStars = '⭐'.repeat(Math.floor(averageRating.average)) + 
+                           (averageRating.average % 1 >= 0.5 ? '⭐' : '☆') +
+                           '☆'.repeat(Math.max(0, 4 - Math.floor(averageRating.average)));
+            
+            embed.addFields(
+                { name: 'Note moyenne', value: `${averageRating.average.toFixed(1)}/5 ${avgStars}`, inline: true },
+                { name: 'Nombre de votes', value: averageRating.count.toString(), inline: true }
+            );
+        }
+
+        if (movie.poster && movie.poster !== 'N/A') {
+            embed.setThumbnail(movie.poster);
+        }
+
+        embed.setTimestamp();
+
+        await interaction.update({
+            embeds: [embed],
+            components: []
+        });
+    },
+
+    async handleCancelRating(interaction) {
+
+        await interaction.update({
+            embeds: [new EmbedBuilder()
+                .setColor('#888888')
+                .setTitle('❌ Notation annulée')
+                .setDescription('La notation du film a été annulée.')
+                .setTimestamp()],
+            components: []
+        });
+    },
+
+    async handleRemoveRating(interaction) {
+
+        // Extraire l'ID du film depuis le customId
+        const movieDbId = parseInt(interaction.customId.split('_')[2]);
+        const userId = interaction.user.id;
+
+        // Vérifier si le film existe
+        const movie = await dataManager.getMovieFromDatabase(movieDbId);
+        if (!movie) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Film non trouvé')
+                    .setDescription('Film introuvable dans la base de données.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        // Vérifier si l'utilisateur a une note pour ce film
+        const userRating = await dataManager.getUserRating(movieDbId, userId);
+        if (!userRating) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ffaa00')
+                    .setTitle('⚠️ Aucune note')
+                    .setDescription('Vous n\'avez pas encore noté ce film.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        // Supprimer la note
+        try {
+            const result = await dataManager.removeUserRating(movieDbId, userId);
+            
+            if (!result.success) {
+                if (result.reason === 'rating_not_found') {
+                    return await interaction.reply({
+                        embeds: [new EmbedBuilder()
+                            .setColor('#ffaa00')
+                            .setTitle('⚠️ Aucune note')
+                            .setDescription('Vous n\'avez pas encore noté ce film.')
+                            .setTimestamp()],
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+                
+                return await interaction.reply({
+                    embeds: [new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setTitle('❌ Erreur')
+                        .setDescription('Impossible de supprimer votre note.')
+                        .setTimestamp()],
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+            
+            const embed = new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle('✅ Note supprimée')
+                .setDescription(`Votre note pour **${movie.title}** a été supprimée.`)
+                .setTimestamp();
+
+            if (movie.poster && movie.poster !== 'N/A') {
+                embed.setThumbnail(movie.poster);
+            }
+
+            await interaction.update({
+                embeds: [embed],
+                components: []
+            });
+        } catch (error) {
+            console.error('Erreur lors de la suppression de la note:', error);
+            await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de supprimer votre note.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
     }
 };

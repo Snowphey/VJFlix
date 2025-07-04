@@ -6,13 +6,44 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('ajouter-watchlist')
         .setDescription('Ajouter un film de la base de données à la watchlist')
-        .addIntegerOption(option =>
-            option.setName('id')
-                .setDescription('L\'ID du film dans la base de données')
-                .setRequired(true)),
+        .addStringOption(option =>
+            option.setName('film')
+                .setDescription('Sélectionnez un film à ajouter à la watchlist')
+                .setRequired(true)
+                .setAutocomplete(true)),
+
+    async autocomplete(interaction) {
+        const focusedValue = interaction.options.getFocused();
+        
+        try {
+            if (!focusedValue) {
+                // Récupérer les films récents de la base de données qui ne sont pas dans la watchlist
+                const movies = await dataManager.getMoviesNotInWatchlist(0, 25);
+                const choices = movies.map(movie => ({
+                    name: `${movie.title} (${movie.year || 'N/A'})`,
+                    value: movie.id.toString()
+                }));
+                
+                await interaction.respond(choices);
+                return;
+            }
+            
+            // Rechercher les films correspondants dans la base de données qui ne sont pas dans la watchlist
+            const movies = await dataManager.searchMoviesNotInWatchlist(focusedValue);
+            const choices = movies.slice(0, 25).map(movie => ({
+                name: `${movie.title} (${movie.year || 'N/A'})`,
+                value: movie.id.toString()
+            }));
+            
+            await interaction.respond(choices);
+        } catch (error) {
+            console.error('Erreur lors de l\'autocomplétion:', error);
+            await interaction.respond([]);
+        }
+    },
 
     async execute(interaction) {
-        const movieId = interaction.options.getInteger('id');
+        const movieId = parseInt(interaction.options.getString('film'));
         
         // Vérifier si le film existe
         const movie = await dataManager.getMovieFromDatabase(movieId);
@@ -21,14 +52,14 @@ module.exports = {
                 embeds: [new EmbedBuilder()
                     .setColor('#ff0000')
                     .setTitle('❌ Film non trouvé')
-                    .setDescription(`Aucun film trouvé avec l'ID ${movieId} dans la base de données.`)
+                    .setDescription(`Film introuvable dans la base de données.`)
                     .setTimestamp()],
                 flags: MessageFlags.Ephemeral
             });
         }
 
         // Ajouter à la watchlist
-        const result = await dataManager.addMovieToWatchlistFromDb(movieId, interaction.user);
+        const result = await dataManager.addMovieToWatchlist(movieId, interaction.user);
         
         if (!result.success) {
             let message = 'Erreur lors de l\'ajout à la watchlist.';
@@ -53,8 +84,7 @@ module.exports = {
             .setTitle('✅ Ajouté à la watchlist')
             .setDescription(`**${movie.title}** a été ajouté à la watchlist !`)
             .addFields(
-                { name: 'ID watchlist', value: result.movie.id.toString(), inline: true },
-                { name: 'Film ID', value: movieId.toString(), inline: true }
+                { name: 'ID watchlist', value: result.movie.id.toString(), inline: true }
             );
 
         if (movie.year) {
