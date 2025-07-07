@@ -75,6 +75,17 @@ class DatabaseManager {
                 UNIQUE (movie_id, user_id)
             )`,
 
+            // Table des envies de regarder
+            `CREATE TABLE IF NOT EXISTS watch_desires (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                movie_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL,
+                desire_rating INTEGER NOT NULL CHECK (desire_rating >= 0 AND desire_rating <= 5),
+                rated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (movie_id) REFERENCES movies (id),
+                UNIQUE (movie_id, user_id)
+            )`,
+
             // Table des paramètres
             `CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
@@ -95,7 +106,9 @@ class DatabaseManager {
             'CREATE INDEX IF NOT EXISTS idx_movies_popularity ON movies (popularity)',
             'CREATE INDEX IF NOT EXISTS idx_movies_watched ON movies (watched)',
             'CREATE INDEX IF NOT EXISTS idx_ratings_movie_id ON ratings (movie_id)',
-            'CREATE INDEX IF NOT EXISTS idx_ratings_user_id ON ratings (user_id)'
+            'CREATE INDEX IF NOT EXISTS idx_ratings_user_id ON ratings (user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_watch_desires_movie_id ON watch_desires (movie_id)',
+            'CREATE INDEX IF NOT EXISTS idx_watch_desires_user_id ON watch_desires (user_id)'
         ];
 
         for (const index of indexes) {
@@ -528,6 +541,119 @@ class DatabaseManager {
         return ratings.map(rating => ({
             movie: this.formatMovie(rating),
             rating: rating.rating,
+            ratedAt: rating.rated_at
+        }));
+    }
+
+    // === MÉTHODES POUR LES NOTES D'ENVIE ===
+
+    async rateMovieDesire(movieId, userId, desireRating) {
+        try {
+            if (desireRating < 0 || desireRating > 5) {
+                return { success: false, reason: 'invalid_rating' };
+            }
+
+            const movie = await this.get('SELECT id FROM movies WHERE id = ?', [movieId]);
+            if (!movie) {
+                return { success: false, reason: 'movie_not_found' };
+            }
+
+            await this.run(`
+                INSERT OR REPLACE INTO watch_desires (movie_id, user_id, desire_rating)
+                VALUES (?, ?, ?)
+            `, [movieId, userId, desireRating]);
+
+            return { success: true };
+        } catch (error) {
+            console.error('Erreur lors de la notation de l\'envie:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async removeUserDesireRating(movieId, userId) {
+        try {
+            const movie = await this.get('SELECT id FROM movies WHERE id = ?', [movieId]);
+            if (!movie) {
+                return { success: false, reason: 'movie_not_found' };
+            }
+
+            const rating = await this.get(
+                'SELECT * FROM watch_desires WHERE movie_id = ? AND user_id = ?',
+                [movieId, userId]
+            );
+
+            if (!rating) {
+                return { success: false, reason: 'rating_not_found' };
+            }
+
+            await this.run('DELETE FROM watch_desires WHERE movie_id = ? AND user_id = ?', [movieId, userId]);
+            return { success: true };
+        } catch (error) {
+            console.error('Erreur lors de la suppression de la note d\'envie:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async getUserDesireRating(movieId, userId) {
+        const rating = await this.get(
+            'SELECT * FROM watch_desires WHERE movie_id = ? AND user_id = ?',
+            [movieId, userId]
+        );
+        return rating;
+    }
+
+    async getMovieDesireRatings(movieId) {
+        const ratings = await this.all('SELECT * FROM watch_desires WHERE movie_id = ?', [movieId]);
+        return ratings;
+    }
+
+    async getAverageDesireRating(movieId) {
+        const result = await this.get(`
+            SELECT AVG(desire_rating) as average, COUNT(*) as count
+            FROM watch_desires WHERE movie_id = ?
+        `, [movieId]);
+
+        if (!result || result.count === 0) return null;
+
+        return {
+            average: Math.round(result.average * 10) / 10,
+            count: result.count
+        };
+    }
+
+    async getMostDesiredMovies(limit = 10) {
+        const movies = await this.all(`
+            SELECT m.*, AVG(wd.desire_rating) as avg_desire_rating, COUNT(wd.desire_rating) as desire_count
+            FROM movies m
+            JOIN watch_desires wd ON m.id = wd.movie_id
+            WHERE m.watched = FALSE
+            GROUP BY m.id
+            HAVING desire_count >= 1
+            ORDER BY avg_desire_rating DESC, desire_count DESC
+            LIMIT ?
+        `, [limit]);
+
+        return movies.map(movie => ({
+            ...this.formatMovie(movie),
+            desireRating: {
+                average: Math.round(movie.avg_desire_rating * 10) / 10,
+                count: movie.desire_count
+            }
+        }));
+    }
+
+    async getUserDesireRatings(userId) {
+        const ratings = await this.all(`
+            SELECT wd.*, m.*
+            FROM watch_desires wd
+            JOIN movies m ON wd.movie_id = m.id
+            WHERE wd.user_id = ?
+            ORDER BY wd.rated_at DESC
+        `, [userId]);
+
+        return ratings.map(rating => ({
+            movie: this.formatMovie(rating),
+            desireRating: rating.desire_rating,
             ratedAt: rating.rated_at
         }));
     }

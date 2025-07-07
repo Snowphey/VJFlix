@@ -37,7 +37,9 @@ module.exports = {
         topMovies.forEach((movie, index) => {
             const position = index + 1;
             const medal = position === 1 ? '🥇' : position === 2 ? '🥈' : position === 3 ? '🥉' : `${position}.`;
-            const stars = '⭐'.repeat(Math.floor(movie.rating.average)) + '☆'.repeat(5 - Math.floor(movie.rating.average));
+            const stars = movie.rating.average === 0 ? '☆☆☆☆☆' : '⭐'.repeat(Math.floor(movie.rating.average)) + 
+                        (movie.rating.average % 1 >= 0.5 ? '⭐' : '') +
+                        '☆'.repeat(Math.max(0, 5 - Math.ceil(movie.rating.average)));
             
             let movieInfo = `${movie.rating.average}/5 ${stars}\n`;
             movieInfo += `${movie.rating.count} vote${movie.rating.count > 1 ? 's' : ''}`;

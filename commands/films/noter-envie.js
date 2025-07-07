@@ -1,13 +1,13 @@
-const { SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { MessageFlags, SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('noter-film')
-        .setDescription('Noter un film de la base de données')
+        .setName('noter-envie')
+        .setDescription('Noter votre envie de regarder un film')
         .addStringOption(option =>
             option.setName('film')
-                .setDescription('Sélectionnez un film à noter')
+                .setDescription('Sélectionnez un film pour noter votre envie')
                 .setRequired(true)
                 .setAutocomplete(true)),
 
@@ -15,8 +15,8 @@ module.exports = {
         const focusedValue = interaction.options.getFocused();
         
         if (!focusedValue) {
-            // Récupérer les films récents
-            const movies = await dataManager.getMoviesPaginated(0, 25);
+            // Récupérer les films récents (priorité aux non vus pour l'envie)
+            const movies = await dataManager.getUnwatchedMovies(0, 25);
             const choices = movies.map(movie => ({
                 name: `${movie.title} (${movie.year || 'N/A'})`,
                 value: movie.id.toString()
@@ -53,13 +53,13 @@ module.exports = {
             });
         }
 
-        // Vérifier si l'utilisateur a déjà noté ce film
-        const userRating = await dataManager.getUserRating(movieDbId, userId);
-        const averageRating = await dataManager.getAverageRating(movieDbId);
+        // Vérifier si l'utilisateur a déjà noté l'envie pour ce film
+        const userDesireRating = await dataManager.getUserDesireRating(movieDbId, userId);
+        const averageDesireRating = await dataManager.getAverageDesireRating(movieDbId);
 
         const embed = new EmbedBuilder()
-            .setColor('#4169E1')
-            .setTitle('🎬 Noter le film')
+            .setColor('#9932CC')
+            .setTitle('💜 Noter votre envie de regarder')
             .setDescription(`**${movie.title}**`)
             .setTimestamp();
 
@@ -71,22 +71,29 @@ module.exports = {
             embed.addFields({ name: 'Genres', value: movie.genre.join(', '), inline: true });
         }
 
-        if (userRating) {
-            const userStars = userRating.rating === 0 ? '☆☆☆☆☆' : '⭐'.repeat(userRating.rating) + '☆'.repeat(5 - userRating.rating);
-            embed.addFields({ name: 'Votre note actuelle', value: `${userRating.rating}/5 ${userStars}`, inline: false });
-            embed.setDescription(`**${movie.title}**\n\n*Vous avez déjà noté ce film. Vous pouvez modifier votre note.*`);
+        // Indiquer si le film est déjà vu
+        if (movie.watched) {
+            embed.addFields({ name: 'Statut', value: '✅ Déjà vu', inline: true });
         } else {
-            embed.setDescription(`**${movie.title}**\n\n*Choisissez une note pour ce film :*`);
+            embed.addFields({ name: 'Statut', value: '⏳ Non vu', inline: true });
         }
 
-        if (averageRating) {
-            const avgStars = averageRating.average === 0 ? '☆☆☆☆☆' : '⭐'.repeat(Math.floor(averageRating.average)) + 
-                           (averageRating.average % 1 >= 0.5 ? '⭐' : '') +
-                           '☆'.repeat(Math.max(0, 5 - Math.ceil(averageRating.average)));
+        if (userDesireRating) {
+            const userStars = userDesireRating.desire_rating === 0 ? '🤍🤍🤍🤍🤍' : '💜'.repeat(userDesireRating.desire_rating) + '🤍'.repeat(5 - userDesireRating.desire_rating);
+            embed.addFields({ name: 'Votre envie actuelle', value: `${userDesireRating.desire_rating}/5 ${userStars}`, inline: false });
+            embed.setDescription(`**${movie.title}**\n\n*Vous avez déjà noté votre envie pour ce film. Vous pouvez modifier votre note.*`);
+        } else {
+            embed.setDescription(`**${movie.title}**\n\n*Choisissez votre niveau d'envie de regarder ce film :*`);
+        }
+
+        if (averageDesireRating) {
+            const avgStars = averageDesireRating.average === 0 ? '🤍🤍🤍🤍🤍' : '💜'.repeat(Math.floor(averageDesireRating.average)) + 
+                           (averageDesireRating.average % 1 >= 0.5 ? '💜' : '') +
+                           '🤍'.repeat(Math.max(0, 5 - Math.ceil(averageDesireRating.average)));
             
             embed.addFields(
-                { name: 'Note moyenne', value: `${averageRating.average.toFixed(1)}/5 ${avgStars}`, inline: true },
-                { name: 'Votes', value: averageRating.count.toString(), inline: true }
+                { name: 'Envie moyenne', value: `${averageDesireRating.average.toFixed(1)}/5 ${avgStars}`, inline: true },
+                { name: 'Votes', value: averageDesireRating.count.toString(), inline: true }
             );
         }
 
@@ -94,52 +101,52 @@ module.exports = {
             embed.setThumbnail(movie.poster);
         }
 
-        // Créer les boutons de notation
+        // Créer les boutons de notation d'envie
         const ratingRow = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`rate_${movieDbId}_0`)
-                    .setLabel('☆')
+                    .setCustomId(`desire_${movieDbId}_0`)
+                    .setLabel('🤍')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
-                    .setCustomId(`rate_${movieDbId}_1`)
-                    .setLabel('⭐')
+                    .setCustomId(`desire_${movieDbId}_1`)
+                    .setLabel('💜')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
-                    .setCustomId(`rate_${movieDbId}_2`)
-                    .setLabel('⭐⭐')
+                    .setCustomId(`desire_${movieDbId}_2`)
+                    .setLabel('💜💜')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
-                    .setCustomId(`rate_${movieDbId}_3`)
-                    .setLabel('⭐⭐⭐')
+                    .setCustomId(`desire_${movieDbId}_3`)
+                    .setLabel('💜💜💜')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
-                    .setCustomId(`rate_${movieDbId}_4`)
-                    .setLabel('⭐⭐⭐⭐')
+                    .setCustomId(`desire_${movieDbId}_4`)
+                    .setLabel('💜💜💜💜')
                     .setStyle(ButtonStyle.Secondary)
             );
 
         const ratingRow2 = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`rate_${movieDbId}_5`)
-                    .setLabel('⭐⭐⭐⭐⭐')
+                    .setCustomId(`desire_${movieDbId}_5`)
+                    .setLabel('💜💜💜💜💜')
                     .setStyle(ButtonStyle.Secondary)
             );
 
         const actionRow = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`cancel_rating_${movieDbId}`)
+                    .setCustomId(`cancel_desire_${movieDbId}`)
                     .setLabel('❌ Annuler')
                     .setStyle(ButtonStyle.Danger)
             );
 
         // Ajouter le bouton de suppression si l'utilisateur a déjà noté
-        if (userRating) {
+        if (userDesireRating) {
             actionRow.addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`remove_rating_${movieDbId}`)
+                    .setCustomId(`remove_desire_${movieDbId}`)
                     .setLabel('🗑️ Supprimer ma note')
                     .setStyle(ButtonStyle.Secondary)
             );

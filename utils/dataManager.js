@@ -158,6 +158,36 @@ class DataManagerAdapter {
     async getUserRatings(userId) {
         return await this.db.getUserRatings(userId);
     }
+
+    // === SYSTÈME DE NOTATION D'ENVIE ===
+
+    async rateMovieDesire(movieDbId, userId, desireRating) {
+        return await this.db.rateMovieDesire(movieDbId, userId, desireRating);
+    }
+
+    async removeUserDesireRating(movieDbId, userId) {
+        return await this.db.removeUserDesireRating(movieDbId, userId);
+    }
+
+    async getUserDesireRating(movieDbId, userId) {
+        return await this.db.getUserDesireRating(movieDbId, userId);
+    }
+
+    async getMovieDesireRatings(movieDbId) {
+        return await this.db.getMovieDesireRatings(movieDbId);
+    }
+
+    async getAverageDesireRating(movieDbId) {
+        return await this.db.getAverageDesireRating(movieDbId);
+    }
+
+    async getMostDesiredMovies(limit = 10) {
+        return await this.db.getMostDesiredMovies(limit);
+    }
+
+    async getUserDesireRatings(userId) {
+        return await this.db.getUserDesireRatings(userId);
+    }
 }
 
 module.exports = new DataManagerAdapter();
