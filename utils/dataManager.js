@@ -188,6 +188,12 @@ class DataManagerAdapter {
     async getUserDesireRatings(userId) {
         return await this.db.getUserDesireRatings(userId);
     }
+
+    // === MÉTHODES POUR LES WATCHPARTIES ===
+
+    async getMovieRecommendationsForUsers(userIds) {
+        return await this.db.getMovieRecommendationsForUsers(userIds);
+    }
 }
 
 module.exports = new DataManagerAdapter();

@@ -294,6 +294,17 @@ module.exports = {
                         flags: MessageFlags.Ephemeral 
                     });
                 }
+            } else if (interaction.customId.startsWith('watchparty_')) {
+                // Gérer les interactions de watchparty
+                try {
+                    await this.handleWatchpartyInteraction(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de l\'interaction watchparty:', error);
+                    await interaction.reply({ 
+                        content: 'Une erreur est survenue lors de l\'interaction.', 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
             }
         }
     },
@@ -1155,5 +1166,19 @@ module.exports = {
         // Réexécuter la commande mes-envies
         const mesEnviesCommand = require('../commands/films/mes-envies.js');
         await mesEnviesCommand.execute(interaction);
+    },
+
+    async handleWatchpartyInteraction(interaction) {
+        const watchpartyCommand = require('../commands/films/watchparty.js');
+        
+        if (interaction.customId === 'watchparty_available' || 
+            interaction.customId === 'watchparty_unavailable' || 
+            interaction.customId === 'watchparty_maybe') {
+            await watchpartyCommand.handleAvailabilityVote(interaction);
+        } else if (interaction.customId === 'watchparty_recommendations') {
+            await watchpartyCommand.handleRecommendations(interaction);
+        } else if (interaction.customId === 'watchparty_end') {
+            await watchpartyCommand.handleEndWatchparty(interaction);
+        }
     },
 };
