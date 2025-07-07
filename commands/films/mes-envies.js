@@ -70,17 +70,8 @@ module.exports = {
                 { name: 'Total noté', value: userDesires.length.toString(), inline: true }
             );
 
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('refresh_my_desires')
-                        .setLabel('🔄 Actualiser')
-                        .setStyle(ButtonStyle.Secondary)
-                );
-
             await interaction.reply({
                 embeds: [embed],
-                components: [row],
                 flags: MessageFlags.Ephemeral
             });
 

@@ -65,17 +65,8 @@ module.exports = {
                 { name: 'Films classés', value: mostDesired.length.toString(), inline: true }
             );
 
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('refresh_top_desires')
-                        .setLabel('🔄 Actualiser')
-                        .setStyle(ButtonStyle.Secondary)
-                );
-
             await interaction.reply({
                 embeds: [embed],
-                components: [row]
             });
 
         } catch (error) {

@@ -294,28 +294,6 @@ module.exports = {
                         flags: MessageFlags.Ephemeral 
                     });
                 }
-            } else if (interaction.customId === 'refresh_top_desires') {
-                // Actualiser le top des envies
-                try {
-                    await this.handleRefreshTopDesires(interaction);
-                } catch (error) {
-                    console.error('Erreur lors de l\'actualisation:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue lors de l\'actualisation.', 
-                        flags: MessageFlags.Ephemeral 
-                    });
-                }
-            } else if (interaction.customId === 'refresh_my_desires') {
-                // Actualiser les envies de l'utilisateur
-                try {
-                    await this.handleRefreshMyDesires(interaction);
-                } catch (error) {
-                    console.error('Erreur lors de l\'actualisation:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue lors de l\'actualisation.', 
-                        flags: MessageFlags.Ephemeral 
-                    });
-                }
             }
         }
     },
