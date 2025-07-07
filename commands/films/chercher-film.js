@@ -28,7 +28,7 @@ module.exports = {
             }
             
             // Rechercher les films correspondants dans la base de données
-            const movies = await dataManager.searchMoviesInDatabase(focusedValue);
+            const movies = await dataManager.searchMovies(focusedValue);
             const choices = movies.slice(0, 25).map(movie => ({
                 name: `${movie.title} (${movie.year || 'N/A'})`,
                 value: movie.id.toString()
