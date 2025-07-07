@@ -18,22 +18,22 @@ module.exports = {
         
         try {
             if (!focusedValue) {
-                // Si pas de recherche, afficher les premiers films non vus de la watchlist
-                const watchlistItems = await dataManager.getUnwatchedWatchlistMovies(0, 25);
-                const choices = watchlistItems.map(watchlistItem => ({
-                    name: `${watchlistItem.title} (${watchlistItem.year || 'N/A'})`,
-                    value: watchlistItem.movieId.toString() // ID du film dans la table movies
+                // Si pas de recherche, afficher les premiers films non vus
+                const unwatchedMovies = await dataManager.getUnwatchedMovies(0, 25);
+                const choices = unwatchedMovies.map(movie => ({
+                    name: `${movie.title} (${movie.year || 'N/A'})`,
+                    value: movie.id.toString()
                 }));
                 
                 await interaction.respond(choices);
                 return;
             }
             
-            // Rechercher parmi les films non vus de la watchlist
-            const watchlistItems = await dataManager.searchUnwatchedWatchlistMovies(focusedValue);
-            const choices = watchlistItems.slice(0, 25).map(watchlistItem => ({
-                name: `${watchlistItem.title} (${watchlistItem.year || 'N/A'})`,
-                value: watchlistItem.movieId.toString() // ID du film dans la table movies
+            // Rechercher parmi les films non vus
+            const unwatchedMovies = await dataManager.searchUnwatchedMovies(focusedValue);
+            const choices = unwatchedMovies.slice(0, 25).map(movie => ({
+                name: `${movie.title} (${movie.year || 'N/A'})`,
+                value: movie.id.toString()
             }));
             
             await interaction.respond(choices);
@@ -47,7 +47,7 @@ module.exports = {
         const movieId = parseInt(interaction.options.getString('film'));
         
         // Vérifier si le film existe dans la base de données
-        const movie = await dataManager.getMovieFromDatabase(movieId);
+        const movie = await dataManager.getMovieById(movieId);
         if (!movie) {
             await interaction.reply({ 
                 content: `Aucun film trouvé avec cet ID dans la base de données !`, 

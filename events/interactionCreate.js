@@ -81,14 +81,58 @@ module.exports = {
                         flags: MessageFlags.Ephemeral 
                     });
                 }
-            } else if (interaction.customId.startsWith('add_to_watchlist_')) {
-                // Ajouter un film de la base de données à la watchlist
+            } else if (interaction.customId.startsWith('mark_watched_')) {
+                // Marquer un film comme vu
                 try {
-                    await this.handleAddToWatchlist(interaction);
+                    await this.handleMarkWatched(interaction);
                 } catch (error) {
-                    console.error('Erreur lors de l\'ajout à la watchlist:', error);
+                    console.error('Erreur lors du marquage comme vu:', error);
                     await interaction.reply({ 
-                        content: 'Une erreur est survenue lors de l\'ajout à la watchlist.', 
+                        content: 'Une erreur est survenue lors du marquage du film.', 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
+            } else if (interaction.customId.startsWith('mark_unwatched_')) {
+                // Marquer un film comme non vu
+                try {
+                    await this.handleMarkUnwatched(interaction);
+                } catch (error) {
+                    console.error('Erreur lors du marquage comme non vu:', error);
+                    await interaction.reply({ 
+                        content: 'Une erreur est survenue lors du marquage du film.', 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
+            } else if (interaction.customId.startsWith('remove_from_watchlist_')) {
+                // Supprimer un film de la watchlist
+                try {
+                    await this.handleRemoveFromWatchlist(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de la suppression:', error);
+                    await interaction.reply({ 
+                        content: 'Une erreur est survenue lors de la suppression du film.', 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
+            } else if (interaction.customId.startsWith('confirm_remove_')) {
+                // Confirmation de suppression d'un film
+                try {
+                    await this.handleConfirmRemove(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de la suppression:', error);
+                    await interaction.reply({ 
+                        content: 'Une erreur est survenue lors de la suppression du film.', 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
+            } else if (interaction.customId.startsWith('cancel_remove_')) {
+                // Annulation de suppression d'un film
+                try {
+                    await this.handleCancelRemove(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de l\'annulation:', error);
+                    await interaction.reply({ 
+                        content: 'Une erreur est survenue.', 
                         flags: MessageFlags.Ephemeral 
                     });
                 }
@@ -159,35 +203,17 @@ module.exports = {
                     });
                 }
             } else if (interaction.customId.startsWith('rate_')) {
-                // Gérer les notations de films
+                // Gérer les notations de films (rate_movieId_rating ou rate_quick_movieId)
                 try {
-                    await this.handleMovieRating(interaction);
+                    if (interaction.customId.startsWith('rate_quick_')) {
+                        await this.handleQuickRatingInterface(interaction);
+                    } else {
+                        await this.handleMovieRating(interaction);
+                    }
                 } catch (error) {
                     console.error('Erreur lors de la notation du film:', error);
                     await interaction.reply({ 
                         content: 'Une erreur est survenue lors de la notation du film.', 
-                        flags: MessageFlags.Ephemeral 
-                    });
-                }
-            } else if (interaction.customId.startsWith('cancel_rating_')) {
-                // Annuler la notation
-                try {
-                    await this.handleCancelRating(interaction);
-                } catch (error) {
-                    console.error('Erreur lors de l\'annulation de la notation:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue.', 
-                        flags: MessageFlags.Ephemeral 
-                    });
-                }
-            } else if (interaction.customId.startsWith('remove_rating_')) {
-                // Supprimer la notation
-                try {
-                    await this.handleRemoveRating(interaction);
-                } catch (error) {
-                    console.error('Erreur lors de la suppression de la notation:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue lors de la suppression de la note.', 
                         flags: MessageFlags.Ephemeral 
                     });
                 }
@@ -217,46 +243,10 @@ module.exports = {
         }
     },
 
-    async handleAddToWatchlist(interaction) {
-
-        const movieDbId = parseInt(interaction.customId.split('_')[3]);
-        
-        const result = await dataManager.addMovieToWatchlist(movieDbId, interaction.user);
-        
-        if (!result.success) {
-            let message = 'Erreur lors de l\'ajout à la watchlist.';
-            if (result.reason === 'not_found') {
-                message = 'Film non trouvé dans la base de données.';
-            } else if (result.reason === 'already_in_watchlist') {
-                message = 'Ce film est déjà dans la watchlist.';
-            }
-            
-            return await interaction.reply({
-                embeds: [new EmbedBuilder()
-                    .setColor('#ff0000')
-                    .setTitle('❌ Erreur')
-                    .setDescription(message)
-                    .setTimestamp()],
-                flags: MessageFlags.Ephemeral
-            });
-        }
-        
-        await interaction.reply({
-            embeds: [new EmbedBuilder()
-                .setColor('#00ff00')
-                .setTitle('✅ Ajouté à la watchlist')
-                .setDescription(`**${result.movie.title}** a été ajouté à la watchlist !`)
-                .setTimestamp()]
-        });
-
-        // Mettre à jour la liste dans le canal défini
-        await updateListInChannel(interaction.client);
-    },
-
     async handleMovieDetails(interaction) {
 
         const movieId = parseInt(interaction.customId.split('_')[2]);
-        const movie = await dataManager.getMovieFromDatabase(movieId);
+        const movie = await dataManager.getMovieById(movieId);
         
         if (!movie) {
             return await interaction.reply({
@@ -271,103 +261,6 @@ module.exports = {
 
         const chercherFilmCommand = require('../commands/films/chercher-film.js');
         await chercherFilmCommand.displayMovieDetails(interaction, movie);
-    },
-
-    async handleQuickRating(interaction) {
-
-        const movieId = parseInt(interaction.customId.split('_')[2]);
-        const movie = await dataManager.getMovieFromDatabase(movieId);
-        
-        if (!movie) {
-            return await interaction.reply({
-                embeds: [new EmbedBuilder()
-                    .setColor('#ff0000')
-                    .setTitle('❌ Film non trouvé')
-                    .setDescription('Ce film n\'existe plus dans la base de données.')
-                    .setTimestamp()],
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        const embed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle(`⭐ Noter : ${movie.title}`)
-            .setDescription('Choisissez votre note de 0 à 5 étoiles :')
-            .setTimestamp();
-
-        if (movie.poster && movie.poster !== 'N/A') {
-            embed.setThumbnail(movie.poster);
-        }
-
-        // Boutons de notation
-        const ratingButtons = [];
-        for (let i = 0; i <= 5; i++) {
-            const stars = '⭐'.repeat(i) + '☆'.repeat(5 - i);
-            ratingButtons.push(
-                new ButtonBuilder()
-                    .setCustomId(`rate_${movieId}_${i}`)
-                    .setLabel(`${i} ${stars}`)
-                    .setStyle(i === 0 ? ButtonStyle.Danger : i <= 2 ? ButtonStyle.Secondary : i <= 4 ? ButtonStyle.Primary : ButtonStyle.Success)
-            );
-        }
-
-        const rows = [];
-        for (let i = 0; i < ratingButtons.length; i += 3) {
-            rows.push(new ActionRowBuilder().addComponents(ratingButtons.slice(i, i + 3)));
-        }
-
-        await interaction.reply({
-            embeds: [embed],
-            components: rows,
-            flags: MessageFlags.Ephemeral
-        });
-    },
-
-    async handleDirectRating(interaction) {
-
-        const parts = interaction.customId.split('_');
-        const movieId = parseInt(parts[1]);
-        const rating = parseInt(parts[2]);
-        const userId = interaction.user.id;
-
-        // Noter le film
-        const result = await dataManager.rateMovie(movieId, userId, rating);
-        
-        if (!result.success) {
-            return await interaction.update({
-                embeds: [new EmbedBuilder()
-                    .setColor('#ff0000')
-                    .setTitle('❌ Erreur')
-                    .setDescription('Impossible de noter le film.')
-                    .setTimestamp()],
-                components: []
-            });
-        }
-
-        const movie = await dataManager.getMovieFromDatabase(movieId);
-        const averageRating = await dataManager.getAverageRating(movieId);
-        const starsDisplay = '⭐'.repeat(rating) + '☆'.repeat(5 - rating);
-
-        const embed = new EmbedBuilder()
-            .setColor('#00ff00')
-            .setTitle('✅ Film noté !')
-            .setDescription(`Vous avez donné **${rating}/5** étoiles à **${movie.title}**`)
-            .addFields({ name: 'Votre note', value: starsDisplay, inline: true });
-
-        if (averageRating) {
-            const avgStars = '⭐'.repeat(Math.floor(averageRating.average)) + '☆'.repeat(5 - Math.floor(averageRating.average));
-            embed.addFields(
-                { name: 'Note moyenne', value: `${averageRating.average}/5 ${avgStars}`, inline: true },
-                { name: 'Nombre de votes', value: averageRating.count.toString(), inline: true }
-            );
-        }
-
-        embed.setTimestamp();
-
-        await interaction.update({
-            embeds: [embed],
-            components: []
-        });
     },
 
     async handleDeleteConfirmation(interaction) {
@@ -608,7 +501,7 @@ module.exports = {
             }
 
             // Ajouter le film à la base de données
-            const result = await dataManager.addMovieToDatabase(movieData, interaction.user);
+            const result = await dataManager.addMovie(movieData, interaction.user);
             
             if (!result.success) {
                 if (result.reason === 'exists') {
@@ -674,14 +567,19 @@ module.exports = {
 
             embed.setTimestamp();
 
-            // Bouton pour l'ajouter à la watchlist
+            // Boutons d'action
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId(`add_to_watchlist_${result.movie.id}`)
-                        .setLabel('Ajouter à la watchlist')
+                        .setCustomId(`mark_watched_${result.movie.id}`)
+                        .setLabel('Marquer comme vu')
+                        .setStyle(ButtonStyle.Success)
+                        .setEmoji('✅'),
+                    new ButtonBuilder()
+                        .setCustomId(`rate_quick_${result.movie.id}`)
+                        .setLabel('Noter le film')
                         .setStyle(ButtonStyle.Primary)
-                        .setEmoji('📝')
+                        .setEmoji('⭐')
                 );
 
             await interaction.editReply({
@@ -722,7 +620,7 @@ module.exports = {
         const ratingValue = parseInt(rating);
 
         // Vérifier si le film existe
-        const movie = await dataManager.getMovieFromDatabase(parseInt(movieDbId));
+        const movie = await dataManager.getMovieById(parseInt(movieDbId));
         if (!movie) {
             return await interaction.reply({
                 embeds: [new EmbedBuilder()
@@ -788,100 +686,197 @@ module.exports = {
         });
     },
 
-    async handleCancelRating(interaction) {
-
-        await interaction.update({
+    async handleMarkWatched(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[2]);
+        
+        // Marquer le film comme vu
+        const result = await dataManager.markAsWatched(movieId, interaction.user);
+        
+        if (!result) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de marquer le film comme vu.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        
+        await interaction.reply({
             embeds: [new EmbedBuilder()
-                .setColor('#888888')
-                .setTitle('❌ Notation annulée')
-                .setDescription('La notation du film a été annulée.')
+                .setColor('#00ff00')
+                .setTitle('✅ Film marqué comme vu')
+                .setDescription(`**${result.title}** a été marqué comme vu !`)
                 .setTimestamp()],
-            components: []
+            flags: MessageFlags.Ephemeral
         });
+
+        // Mettre à jour la liste dans le canal défini
+        await updateListInChannel(interaction.client);
     },
 
-    async handleRemoveRating(interaction) {
+    async handleMarkUnwatched(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[2]);
+        
+        // Marquer le film comme non vu
+        const result = await dataManager.markAsUnwatched(movieId, interaction.user);
+        
+        if (!result) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de marquer le film comme non vu.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        
+        await interaction.reply({
+            embeds: [new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle('✅ Film marqué comme non vu')
+                .setDescription(`**${result.title}** a été remis dans la liste à regarder !`)
+                .setTimestamp()],
+            flags: MessageFlags.Ephemeral
+        });
 
-        // Extraire l'ID du film depuis le customId
-        const movieDbId = parseInt(interaction.customId.split('_')[2]);
-        const userId = interaction.user.id;
+        // Mettre à jour la liste dans le canal défini
+        await updateListInChannel(interaction.client);
+    },
 
-        // Vérifier si le film existe
-        const movie = await dataManager.getMovieFromDatabase(movieDbId);
+    async handleRemoveFromWatchlist(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[3]);
+        
+        // Récupérer les informations du film avant suppression
+        const movie = await dataManager.getMovieById(movieId);
         if (!movie) {
             return await interaction.reply({
                 embeds: [new EmbedBuilder()
                     .setColor('#ff0000')
                     .setTitle('❌ Film non trouvé')
-                    .setDescription('Film introuvable dans la base de données.')
+                    .setDescription('Ce film n\'existe plus dans la base de données.')
                     .setTimestamp()],
                 flags: MessageFlags.Ephemeral
             });
         }
 
-        // Vérifier si l'utilisateur a une note pour ce film
-        const userRating = await dataManager.getUserRating(movieDbId, userId);
-        if (!userRating) {
-            return await interaction.reply({
-                embeds: [new EmbedBuilder()
-                    .setColor('#ffaa00')
-                    .setTitle('⚠️ Aucune note')
-                    .setDescription('Vous n\'avez pas encore noté ce film.')
-                    .setTimestamp()],
-                flags: MessageFlags.Ephemeral
-            });
-        }
+        // Demander confirmation
+        const embed = new EmbedBuilder()
+            .setColor('#ff9900')
+            .setTitle('⚠️ Confirmation de suppression')
+            .setDescription(`Êtes-vous sûr de vouloir supprimer **${movie.title}** de votre watchlist ?\n\n**⚠️ Attention : Cela supprimera définitivement le film de la base de données !**`)
+            .setTimestamp();
 
-        // Supprimer la note
-        try {
-            const result = await dataManager.removeUserRating(movieDbId, userId);
-            
-            if (!result.success) {
-                if (result.reason === 'rating_not_found') {
-                    return await interaction.reply({
-                        embeds: [new EmbedBuilder()
-                            .setColor('#ffaa00')
-                            .setTitle('⚠️ Aucune note')
-                            .setDescription('Vous n\'avez pas encore noté ce film.')
-                            .setTimestamp()],
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-                
-                return await interaction.reply({
-                    embeds: [new EmbedBuilder()
-                        .setColor('#ff0000')
-                        .setTitle('❌ Erreur')
-                        .setDescription('Impossible de supprimer votre note.')
-                        .setTimestamp()],
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-            
-            const embed = new EmbedBuilder()
-                .setColor('#00ff00')
-                .setTitle('✅ Note supprimée')
-                .setDescription(`Votre note pour **${movie.title}** a été supprimée.`)
-                .setTimestamp();
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`confirm_remove_${movieId}`)
+                    .setLabel('Confirmer la suppression')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🗑️'),
+                new ButtonBuilder()
+                    .setCustomId(`cancel_remove_${movieId}`)
+                    .setLabel('Annuler')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('❌')
+            );
 
-            if (movie.poster && movie.poster !== 'N/A') {
-                embed.setThumbnail(movie.poster);
-            }
+        await interaction.reply({
+            embeds: [embed],
+            components: [row],
+            flags: MessageFlags.Ephemeral
+        });
+    },
 
-            await interaction.update({
-                embeds: [embed],
-                components: []
-            });
-        } catch (error) {
-            console.error('Erreur lors de la suppression de la note:', error);
-            await interaction.reply({
+    async handleConfirmRemove(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[2]);
+        
+        // Supprimer le film de la base de données
+        const result = await dataManager.removeMovie(movieId);
+        
+        if (!result.success) {
+            return await interaction.update({
                 embeds: [new EmbedBuilder()
                     .setColor('#ff0000')
                     .setTitle('❌ Erreur')
-                    .setDescription('Impossible de supprimer votre note.')
+                    .setDescription('Impossible de supprimer le film de la watchlist.')
+                    .setTimestamp()],
+                components: []
+            });
+        }
+        
+        await interaction.update({
+            embeds: [new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle('✅ Film supprimé')
+                .setDescription(`**${result.movie.title}** a été supprimé de la watchlist et de la base de données.`)
+                .setTimestamp()],
+            components: []
+        });
+
+        // Mettre à jour la liste dans le canal défini
+        await updateListInChannel(interaction.client);
+    },
+
+    async handleCancelRemove(interaction) {
+        await interaction.update({
+            embeds: [new EmbedBuilder()
+                .setColor('#888888')
+                .setTitle('❌ Suppression annulée')
+                .setDescription('La suppression du film a été annulée.')
+                .setTimestamp()],
+            components: []
+        });
+    },
+
+    async handleQuickRatingInterface(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[2]);
+        const movie = await dataManager.getMovieById(movieId);
+        
+        if (!movie) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Film non trouvé')
+                    .setDescription('Ce film n\'existe plus dans la base de données.')
                     .setTimestamp()],
                 flags: MessageFlags.Ephemeral
             });
         }
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle(`⭐ Noter : ${movie.title}`)
+            .setDescription('Choisissez votre note de 0 à 5 étoiles :')
+            .setTimestamp();
+
+        if (movie.poster && movie.poster !== 'N/A') {
+            embed.setThumbnail(movie.poster);
+        }
+
+        // Boutons de notation
+        const ratingButtons = [];
+        for (let i = 0; i <= 5; i++) {
+            const stars = '⭐'.repeat(i) + '☆'.repeat(5 - i);
+            ratingButtons.push(
+                new ButtonBuilder()
+                    .setCustomId(`rate_${movieId}_${i}`)
+                    .setLabel(`${i} ${stars}`)
+                    .setStyle(i === 0 ? ButtonStyle.Danger : i <= 2 ? ButtonStyle.Secondary : i <= 4 ? ButtonStyle.Primary : ButtonStyle.Success)
+            );
+        }
+
+        const rows = [];
+        for (let i = 0; i < ratingButtons.length; i += 3) {
+            rows.push(new ActionRowBuilder().addComponents(ratingButtons.slice(i, i + 3)));
+        }
+
+        await interaction.reply({
+            embeds: [embed],
+            components: rows,
+            flags: MessageFlags.Ephemeral
+        });
     }
 };

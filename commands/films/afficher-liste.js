@@ -7,11 +7,11 @@ module.exports = {
         .setName('afficher-liste')
         .setDescription('Affiche la liste des films à regarder et des films vus'),
     async execute(interaction) {
-        const watchlist = await dataManager.getWatchlist();
-        const watchedlist = await dataManager.getWatchedlist();
+        const unwatchedMovies = await dataManager.getUnwatchedMovies();
+        const watchedMovies = await dataManager.getWatchedMovies();
         
-        const watchlistEmbed = EmbedUtils.createWatchlistEmbed(watchlist);
-        const watchedlistEmbed = EmbedUtils.createWatchedListEmbed(watchedlist);
+        const watchlistEmbed = EmbedUtils.createWatchlistEmbed(unwatchedMovies);
+        const watchedlistEmbed = EmbedUtils.createWatchedListEmbed(watchedMovies);
         
         await interaction.reply({ embeds: [watchlistEmbed, watchedlistEmbed] });
     },

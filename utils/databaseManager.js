@@ -56,24 +56,12 @@ class DatabaseManager {
                 revenue INTEGER,
                 spoken_languages TEXT, -- JSON array
                 production_countries TEXT, -- JSON array
+                watched BOOLEAN DEFAULT FALSE,
+                watched_at DATETIME,
                 added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 added_by_id TEXT,
                 added_by_username TEXT,
                 added_by_display_name TEXT
-            )`,
-
-            // Table des watchlists (films à voir et films vus)
-            `CREATE TABLE IF NOT EXISTS watchlist (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                movie_id INTEGER NOT NULL,
-                watched BOOLEAN DEFAULT FALSE,
-                added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                watched_at DATETIME,
-                added_by_id TEXT,
-                added_by_username TEXT,
-                added_by_display_name TEXT,
-                FOREIGN KEY (movie_id) REFERENCES movies (id),
-                UNIQUE (movie_id) -- Un film ne peut être qu'une fois dans la watchlist
             )`,
 
             // Table des notations
@@ -105,8 +93,7 @@ class DatabaseManager {
             'CREATE INDEX IF NOT EXISTS idx_movies_title_year ON movies (title, year)',
             'CREATE INDEX IF NOT EXISTS idx_movies_tmdb_rating ON movies (tmdb_rating)',
             'CREATE INDEX IF NOT EXISTS idx_movies_popularity ON movies (popularity)',
-            'CREATE INDEX IF NOT EXISTS idx_watchlist_movie_id ON watchlist (movie_id)',
-            'CREATE INDEX IF NOT EXISTS idx_watchlist_watched ON watchlist (watched)',
+            'CREATE INDEX IF NOT EXISTS idx_movies_watched ON movies (watched)',
             'CREATE INDEX IF NOT EXISTS idx_ratings_movie_id ON ratings (movie_id)',
             'CREATE INDEX IF NOT EXISTS idx_ratings_user_id ON ratings (user_id)'
         ];
@@ -200,9 +187,9 @@ class DatabaseManager {
                 INSERT INTO movies (
                     tmdb_id, title, original_title, year, director, actors, plot, poster, 
                     tmdb_rating, runtime, genre, released, type, popularity, vote_count,
-                    budget, revenue, spoken_languages, production_countries,
+                    budget, revenue, spoken_languages, production_countries, watched,
                     added_by_id, added_by_username, added_by_display_name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 movieData.tmdbId || null,
                 movieData.title,
@@ -223,6 +210,7 @@ class DatabaseManager {
                 movieData.revenue || null,
                 JSON.stringify(movieData.spokenLanguages || []),
                 JSON.stringify(movieData.productionCountries || []),
+                false, // watched = false par défaut
                 user?.id || null,
                 user?.username || null,
                 user?.displayName || user?.username || null
@@ -244,20 +232,17 @@ class DatabaseManager {
                 return { success: false, reason: 'not_found' };
             }
 
-            // Supprimer toutes les références au film dans l'ordre approprié
+            // Supprimer toutes les références au film
             // 1. Supprimer les notations
             await this.run('DELETE FROM ratings WHERE movie_id = ?', [id]);
             
-            // 2. Supprimer de la watchlist
-            await this.run('DELETE FROM watchlist WHERE movie_id = ?', [id]);
-            
-            // 3. Supprimer le film lui-même
+            // 2. Supprimer le film (qui contient maintenant les données de watchlist)
             await this.run('DELETE FROM movies WHERE id = ?', [id]);
 
             return { 
                 success: true, 
                 movie: this.formatMovie(movie),
-                message: `Film "${movie.title}" supprimé définitivement de la base de données`
+                message: `Film "${movie.title}" retiré de la watchlist et supprimé de la base de données`
             };
         } catch (error) {
             console.error('Erreur lors de la suppression du film:', error);
@@ -296,28 +281,20 @@ class DatabaseManager {
     }
 
     async getMoviesPaginated(offset = 0, limit = 20) {
-        const movies = await this.all('SELECT * FROM movies ORDER BY id LIMIT ? OFFSET ?', [limit, offset]);
+        const movies = await this.all('SELECT * FROM movies ORDER BY added_at DESC LIMIT ? OFFSET ?', [limit, offset]);
         return movies.map(movie => this.formatMovie(movie));
     }
 
     async getMoviesNotInWatchlist(offset = 0, limit = 20) {
-        const movies = await this.all(`
-            SELECT * FROM movies 
-            WHERE id NOT IN (SELECT movie_id FROM watchlist)
-            ORDER BY id LIMIT ? OFFSET ?
-        `, [limit, offset]);
-        return movies.map(movie => this.formatMovie(movie));
+        // Cette méthode n'est plus nécessaire car tous les films sont dans la watchlist
+        // Renvoyons une liste vide pour la compatibilité
+        return [];
     }
 
     async searchMoviesNotInWatchlist(query) {
-        const movies = await this.all(`
-            SELECT * FROM movies 
-            WHERE (title LIKE ? OR director LIKE ? OR actors LIKE ?)
-            AND id NOT IN (SELECT movie_id FROM watchlist)
-            ORDER BY title
-        `, [`%${query}%`, `%${query}%`, `%${query}%`]);
-
-        return movies.map(movie => this.formatMovie(movie));
+        // Cette méthode n'est plus nécessaire car tous les films sont dans la watchlist
+        // Renvoyons une liste vide pour la compatibilité
+        return [];
     }
 
     formatMovie(movie) {
@@ -342,6 +319,8 @@ class DatabaseManager {
             revenue: movie.revenue,
             spokenLanguages: movie.spoken_languages ? JSON.parse(movie.spoken_languages) : [],
             productionCountries: movie.production_countries ? JSON.parse(movie.production_countries) : [],
+            watched: Boolean(movie.watched),
+            watchedAt: movie.watched_at,
             addedAt: movie.added_at,
             addedBy: movie.added_by_id ? {
                 id: movie.added_by_id,
@@ -351,100 +330,51 @@ class DatabaseManager {
         };
     }
 
-    // === MÉTHODES POUR LA WATCHLIST ===
+    async getUnwatchedMovies(offset = 0, limit = 20) {
+        const movies = await this.all(`
+            SELECT * FROM movies 
+            WHERE watched = FALSE
+            ORDER BY added_at ASC
+            LIMIT ? OFFSET ?
+        `, [limit, offset]);
 
-    async addToWatchlist(movieId, user = null) {
-        try {
-            // Vérifier si le film existe
-            const movie = await this.get('SELECT id FROM movies WHERE id = ?', [movieId]);
-            if (!movie) {
-                return { success: false, reason: 'movie_not_found' };
-            }
-
-            // Vérifier si déjà dans la watchlist
-            const existing = await this.get('SELECT id FROM watchlist WHERE movie_id = ?', [movieId]);
-            if (existing) {
-                return { success: false, reason: 'already_in_watchlist' };
-            }
-
-            const result = await this.run(`
-                INSERT INTO watchlist (movie_id, added_by_id, added_by_username, added_by_display_name)
-                VALUES (?, ?, ?, ?)
-            `, [
-                movieId,
-                user?.id || null,
-                user?.username || null,
-                user?.displayName || user?.username || null
-            ]);
-
-            const watchlistItem = await this.get(`
-                SELECT w.*, m.title, m.year, m.poster 
-                FROM watchlist w
-                JOIN movies m ON w.movie_id = m.id
-                WHERE w.id = ?
-            `, [result.id]);
-
-            return { success: true, movie: this.formatWatchlistItem(watchlistItem) };
-        } catch (error) {
-            console.error('Erreur lors de l\'ajout à la watchlist:', error);
-            return { success: false, error: error.message };
-        }
+        return movies.map(movie => this.formatMovie(movie));
     }
 
-    async getWatchlist(includeWatched = false) {
-        const whereClause = includeWatched ? '' : 'WHERE w.watched = FALSE';
-        const items = await this.all(`
-            SELECT w.*, m.title, m.year, m.poster, m.director, m.genre, m.tmdb_rating
-            FROM watchlist w
-            JOIN movies m ON w.movie_id = m.id
-            ${whereClause}
-            ORDER BY w.added_at ASC
-        `);
+    async getWatchedMovies(offset = 0, limit = 20) {
+        const movies = await this.all(`
+            SELECT * FROM movies 
+            WHERE watched = TRUE
+            ORDER BY watched_at DESC
+            LIMIT ? OFFSET ?
+        `, [limit, offset]);
 
-        return items.map(item => this.formatWatchlistItem(item));
+        return movies.map(movie => this.formatMovie(movie));
     }
 
-    async removeFromWatchlist(id) {
-        try {
-            const item = await this.get(`
-                SELECT w.*, m.title, m.year, m.poster 
-                FROM watchlist w
-                JOIN movies m ON w.movie_id = m.id
-                WHERE w.id = ?
-            `, [id]);
-            
-            if (!item) return null;
+    async searchUnwatchedMovies(query) {
+        const movies = await this.all(`
+            SELECT * FROM movies 
+            WHERE watched = FALSE
+            AND (title LIKE ? OR director LIKE ? OR actors LIKE ?)
+            ORDER BY title
+        `, [`%${query}%`, `%${query}%`, `%${query}%`]);
 
-            await this.run('DELETE FROM watchlist WHERE id = ?', [id]);
-            return this.formatWatchlistItem(item);
-        } catch (error) {
-            console.error('Erreur lors de la suppression de la watchlist:', error);
-            return null;
-        }
+        return movies.map(movie => this.formatMovie(movie));
     }
 
-    formatWatchlistItem(item) {
-        return {
-            id: item.id,
-            movieId: item.movie_id,
-            title: item.title,
-            year: item.year,
-            poster: item.poster,
-            director: item.director,
-            genre: item.genre ? JSON.parse(item.genre) : [],
-            tmdbRating: item.tmdb_rating,
-            watched: Boolean(item.watched),
-            addedAt: item.added_at,
-            watchedAt: item.watched_at,
-            addedBy: item.added_by_id ? {
-                id: item.added_by_id,
-                username: item.added_by_username,
-                displayName: item.added_by_display_name
-            } : null
-        };
+    async searchWatchedMovies(query) {
+        const movies = await this.all(`
+            SELECT * FROM movies 
+            WHERE watched = TRUE
+            AND (title LIKE ? OR director LIKE ? OR actors LIKE ?)
+            ORDER BY title
+        `, [`%${query}%`, `%${query}%`, `%${query}%`]);
+
+        return movies.map(movie => this.formatMovie(movie));
     }
 
-    // === MÉTHODES POUR LES FILMS VUS ===
+    // === MÉTHODES POUR MARQUER LES FILMS COMME VUS/NON VUS ===
 
     async markAsWatched(movieId, user = null) {
         try {
@@ -452,39 +382,16 @@ class DatabaseManager {
             const movie = await this.get('SELECT * FROM movies WHERE id = ?', [movieId]);
             if (!movie) return null;
 
-            // Vérifier si le film est déjà dans la watchlist
-            const existing = await this.get('SELECT * FROM watchlist WHERE movie_id = ?', [movieId]);
-            
-            if (existing) {
-                // Mettre à jour l'entrée existante
-                await this.run(`
-                    UPDATE watchlist 
-                    SET watched = TRUE, watched_at = CURRENT_TIMESTAMP
-                    WHERE movie_id = ?
-                `, [movieId]);
-            } else {
-                // Créer une nouvelle entrée directement marquée comme vue
-                await this.run(`
-                    INSERT INTO watchlist (
-                        movie_id, watched, watched_at, added_by_id, added_by_username, added_by_display_name
-                    ) VALUES (?, TRUE, CURRENT_TIMESTAMP, ?, ?, ?)
-                `, [
-                    movieId,
-                    user ? user.id : null,
-                    user ? user.username : null,
-                    user ? user.displayName || user.username : null
-                ]);
-            }
-
-            // Récupérer l'entrée mise à jour
-            const watchlistItem = await this.get(`
-                SELECT w.*, m.title, m.year, m.poster, m.director, m.genre, m.tmdb_rating
-                FROM watchlist w
-                JOIN movies m ON w.movie_id = m.id
-                WHERE w.movie_id = ?
+            // Mettre à jour le statut du film
+            await this.run(`
+                UPDATE movies 
+                SET watched = TRUE, watched_at = CURRENT_TIMESTAMP
+                WHERE id = ?
             `, [movieId]);
 
-            return this.formatWatchlistItem(watchlistItem);
+            // Récupérer le film mis à jour
+            const updatedMovie = await this.get('SELECT * FROM movies WHERE id = ?', [movieId]);
+            return this.formatMovie(updatedMovie);
         } catch (error) {
             console.error('Erreur lors du marquage comme vu:', error);
             return null;
@@ -497,94 +404,20 @@ class DatabaseManager {
             const movie = await this.get('SELECT * FROM movies WHERE id = ?', [movieId]);
             if (!movie) return null;
 
-            // Vérifier si le film est dans la watchlist
-            const existing = await this.get('SELECT * FROM watchlist WHERE movie_id = ?', [movieId]);
-            if (!existing) return null;
-
-            // Mettre à jour pour marquer comme non vu
+            // Mettre à jour le statut du film
             await this.run(`
-                UPDATE watchlist 
+                UPDATE movies 
                 SET watched = FALSE, watched_at = NULL
-                WHERE movie_id = ?
+                WHERE id = ?
             `, [movieId]);
 
-            // Récupérer l'entrée mise à jour
-            const watchlistItem = await this.get(`
-                SELECT w.*, m.title, m.year, m.poster, m.director, m.genre, m.tmdb_rating
-                FROM watchlist w
-                JOIN movies m ON w.movie_id = m.id
-                WHERE w.movie_id = ?
-            `, [movieId]);
-
-            return this.formatWatchlistItem(watchlistItem);
+            // Récupérer le film mis à jour
+            const updatedMovie = await this.get('SELECT * FROM movies WHERE id = ?', [movieId]);
+            return this.formatMovie(updatedMovie);
         } catch (error) {
             console.error('Erreur lors du marquage comme non-vu:', error);
             return null;
         }
-    }
-
-    async getWatchedMovies() {
-        const items = await this.all(`
-            SELECT w.*, m.title, m.year, m.poster, m.director, m.genre, m.tmdb_rating
-            FROM watchlist w
-            JOIN movies m ON w.movie_id = m.id
-            WHERE w.watched = TRUE
-            ORDER BY w.watched_at DESC
-        `);
-
-        return items.map(item => this.formatWatchlistItem(item));
-    }
-
-    async getUnwatchedWatchlistMovies(offset = 0, limit = 20) {
-        const items = await this.all(`
-            SELECT w.*, m.title, m.year, m.poster, m.director, m.genre, m.tmdb_rating
-            FROM watchlist w
-            JOIN movies m ON w.movie_id = m.id
-            WHERE w.watched = FALSE
-            ORDER BY w.added_at ASC
-            LIMIT ? OFFSET ?
-        `, [limit, offset]);
-
-        return items.map(item => this.formatWatchlistItem(item));
-    }
-
-    async searchUnwatchedWatchlistMovies(query) {
-        const items = await this.all(`
-            SELECT w.*, m.title, m.year, m.poster, m.director, m.genre, m.tmdb_rating
-            FROM watchlist w
-            JOIN movies m ON w.movie_id = m.id
-            WHERE w.watched = FALSE
-            AND (m.title LIKE ? OR m.director LIKE ? OR m.actors LIKE ?)
-            ORDER BY m.title
-        `, [`%${query}%`, `%${query}%`, `%${query}%`]);
-
-        return items.map(item => this.formatWatchlistItem(item));
-    }
-
-    async getWatchedWatchlistMovies(offset = 0, limit = 20) {
-        const items = await this.all(`
-            SELECT w.*, m.title, m.year, m.poster, m.director, m.genre, m.tmdb_rating
-            FROM watchlist w
-            JOIN movies m ON w.movie_id = m.id
-            WHERE w.watched = TRUE
-            ORDER BY w.watched_at DESC
-            LIMIT ? OFFSET ?
-        `, [limit, offset]);
-
-        return items.map(item => this.formatWatchlistItem(item));
-    }
-
-    async searchWatchedWatchlistMovies(query) {
-        const items = await this.all(`
-            SELECT w.*, m.title, m.year, m.poster, m.director, m.genre, m.tmdb_rating
-            FROM watchlist w
-            JOIN movies m ON w.movie_id = m.id
-            WHERE w.watched = TRUE
-            AND (m.title LIKE ? OR m.director LIKE ? OR m.actors LIKE ?)
-            ORDER BY m.title
-        `, [`%${query}%`, `%${query}%`, `%${query}%`]);
-
-        return items.map(item => this.formatWatchlistItem(item));
     }
 
     // === MÉTHODES POUR LES NOTATIONS ===

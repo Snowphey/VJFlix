@@ -11,9 +11,9 @@ module.exports = {
 
         try {
             // Récupérer les statistiques
-            const watchlist = await dataManager.getWatchlist();
+            const watchlist = await dataManager.getUnwatchedMovies();
             const watchedMovies = await dataManager.getWatchedMovies();
-            const allMovies = await dataManager.getMoviesDatabase();
+            const allMovies = await dataManager.getMovies();
             const topRated = await dataManager.getTopRatedMovies(3);
 
             // Compter les notations

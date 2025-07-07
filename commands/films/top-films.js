@@ -58,7 +58,7 @@ module.exports = {
         });
 
         // Ajouter des statistiques générales
-        const totalMovies = (await dataManager.getMoviesDatabase()).length;
+        const totalMovies = (await dataManager.getMovies()).length;
         const ratedMoviesCount = (await dataManager.db.all('SELECT DISTINCT movie_id FROM ratings')).length;
         
         embed.addFields({

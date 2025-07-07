@@ -198,7 +198,7 @@ module.exports = {
 
     async handleMovieFound(interaction, movieData, originalTitle) {
         // Ajouter le film à la base de données
-        const result = await dataManager.addMovieToDatabase(movieData, interaction.user);
+        const result = await dataManager.addMovie(movieData, interaction.user);
         
         if (!result.success) {
             if (result.reason === 'exists') {

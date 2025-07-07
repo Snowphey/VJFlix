@@ -29,7 +29,7 @@ module.exports = {
             }
             
             // Rechercher les films correspondants dans la base de données
-            const movies = await dataManager.searchMoviesInDatabase(focusedValue);
+            const movies = await dataManager.searchMovies(focusedValue);
             const choices = movies.slice(0, 25).map(movie => ({
                 name: `${movie.title} (${movie.year || 'N/A'})`,
                 value: movie.id.toString()
@@ -49,7 +49,7 @@ module.exports = {
 
         try {
             // Récupérer les informations du film avant suppression
-            const movie = await dataManager.getMovieFromDatabase(id);
+            const movie = await dataManager.getMovieById(id);
             
             if (!movie) {
                 return await interaction.editReply({

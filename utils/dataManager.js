@@ -5,12 +5,28 @@ class DataManagerAdapter {
         this.db = databaseManager;
     }
 
-    async getWatchlist() {
-        return await this.db.getWatchlist();
+    async getUnwatchedMovies() {
+        return await this.db.getUnwatchedMovies();
     }
 
     async getWatchedMovies() {
         return await this.db.getWatchedMovies();
+    }
+
+    async getUnwatchedMovies(offset = 0, limit = 20) {
+        return await this.db.getUnwatchedMovies(offset, limit);
+    }
+
+    async getWatchedMovies(offset = 0, limit = 20) {
+        return await this.db.getWatchedMovies(offset, limit);
+    }
+
+    async searchUnwatchedMovies(query) {
+        return await this.db.searchUnwatchedMovies(query);
+    }
+
+    async searchWatchedMovies(query) {
+        return await this.db.searchWatchedMovies(query);
     }
 
     // === MÉTHODES POUR LES FILMS VUS ===
@@ -31,14 +47,14 @@ class DataManagerAdapter {
     // === MÉTHODES UTILITAIRES ===
 
     async getRandomMovies(count) {
-        const watchlist = await this.getWatchlist();
+        const watchlist = await this.getUnwatchedMovies();
         if (watchlist.length < count) return null;
         const shuffled = [...watchlist].sort(() => 0.5 - Math.random());
         return shuffled.slice(0, count);
     }
 
     async getMoviesByIds(ids) {
-        const watchlist = await this.getWatchlist();
+        const watchlist = await this.getUnwatchedMovies();
         const movies = [];
         for (const id of ids) {
             const movie = watchlist.find(m => m.id === parseInt(id));
@@ -81,35 +97,17 @@ class DataManagerAdapter {
         return await this.db.removeMovie(id);
     }
 
-    async addMovieToWatchlist(movieDbId, user = null) {
-        if (!movieDbId) {
-            console.warn('⚠️ Tentative d\'ajout d\'un film sans ID de base de données. Utilisez addMovie()');
-            return { success: false, reason: 'no_db_id' };
-        }
+    
 
-        const result = await this.db.addToWatchlist(movieDbId, user);
-        return result;
-    }
-
-    async removeMovieFromWatchlist(movieDbId, user = null) {
-        if (!movieDbId) {
-            console.warn('⚠️ Tentative de suppression d\'un film sans ID de base de données. Utilisez addMovie()');
-            return { success: false, reason: 'no_db_id' };
-        }
-
-        const result = await this.db.removeFromWatchlist(movieDbId);
-        return result;
-    }
-
-    async searchMoviesInDatabase(query) {
+    async searchMovies(query) {
         return await this.db.searchMovies(query);
     }
 
-    async getMovieFromDatabase(id) {
+    async getMovieById(id) {
         return await this.db.getMovieById(id);
     }
 
-    async getMoviesDatabase() {
+    async getMovies() {
         return await this.db.getAllMovies();
     }
 
@@ -129,23 +127,7 @@ class DataManagerAdapter {
         return await this.db.searchMoviesNotInWatchlist(query);
     }
 
-    // === MÉTHODES POUR LES FILMS DE LA WATCHLIST ===
     
-    async getUnwatchedWatchlistMovies(offset = 0, limit = 20) {
-        return await this.db.getUnwatchedWatchlistMovies(offset, limit);
-    }
-
-    async searchUnwatchedWatchlistMovies(query) {
-        return await this.db.searchUnwatchedWatchlistMovies(query);
-    }
-
-    async getWatchedWatchlistMovies(offset = 0, limit = 20) {
-        return await this.db.getWatchedWatchlistMovies(offset, limit);
-    }
-
-    async searchWatchedWatchlistMovies(query) {
-        return await this.db.searchWatchedWatchlistMovies(query);
-    }
 
     // === SYSTÈME DE NOTATION ===
 

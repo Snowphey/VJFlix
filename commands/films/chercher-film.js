@@ -45,7 +45,7 @@ module.exports = {
         const movieId = parseInt(interaction.options.getString('film'));
         
         // Récupérer le film par son ID
-        const movie = await dataManager.getMovieFromDatabase(movieId);
+        const movie = await dataManager.getMovieById(movieId);
         
         if (!movie) {
             return await interaction.reply({
@@ -115,14 +115,44 @@ module.exports = {
         embed.setTimestamp();
 
         // Boutons d'action
-        const row = new ActionRowBuilder()
-            .addComponents(
+        const row = new ActionRowBuilder();
+        
+        // Bouton pour marquer comme vu/non vu
+        if (movie.watched) {
+            row.addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`add_to_watchlist_${movie.id}`)
-                    .setLabel('Ajouter à la watchlist')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('📝')
+                    .setCustomId(`mark_unwatched_${movie.id}`)
+                    .setLabel('Marquer comme non vu')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('👁️')
             );
+        } else {
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`mark_watched_${movie.id}`)
+                    .setLabel('Marquer comme vu')
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji('✅')
+            );
+        }
+
+        // Bouton pour noter le film
+        row.addComponents(
+            new ButtonBuilder()
+                .setCustomId(`rate_quick_${movie.id}`)
+                .setLabel('Noter le film')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('⭐')
+        );
+
+        // Bouton pour supprimer de la watchlist
+        row.addComponents(
+            new ButtonBuilder()
+                .setCustomId(`remove_from_watchlist_${movie.id}`)
+                .setLabel('Supprimer')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji('🗑️')
+        );
 
         await interaction.reply({
             embeds: [embed],

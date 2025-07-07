@@ -96,7 +96,7 @@ module.exports = {
             }
         }
         
-        const watchlist = await dataManager.getWatchlist();
+        const watchlist = await dataManager.getUnwatchedMovies();
         
         // Vérifier que les options 'nombre' et les films spécifiques ne sont pas utilisées ensemble
         if (count && specifiedMovies.length > 0) {
@@ -258,7 +258,7 @@ module.exports = {
         const focusedOption = interaction.options.getFocused(true);
         
         // Récupérer tous les films de la watchlist
-        const watchlist = await dataManager.getWatchlist();
+        const watchlist = await dataManager.getUnwatchedMovies();
         
         // Récupérer les films déjà sélectionnés dans les autres options (pas celle en cours de saisie)
         const alreadySelected = [];

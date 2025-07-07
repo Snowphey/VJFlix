@@ -46,7 +46,7 @@ module.exports = {
         const movieId = parseInt(interaction.options.getString('film'));
         
         // Vérifier si le film existe
-        const movie = await dataManager.getMovieFromDatabase(movieId);
+        const movie = await dataManager.getMovieById(movieId);
         if (!movie) {
             return await interaction.reply({
                 embeds: [new EmbedBuilder()
