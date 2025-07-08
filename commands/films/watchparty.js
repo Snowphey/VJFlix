@@ -61,11 +61,13 @@ module.exports = {
                     .setEmoji('🏁')
             );
 
-        const fetchedMessage = await interaction.reply({
+        const response = await interaction.reply({
             embeds: [embed],
             components: [pollRow, actionRow],
-            fetchReply: true
+            withResponse: true
         });
+        
+        const fetchedMessage = response;
 
         // Stocker les informations de la watchparty
         const watchpartyData = {
