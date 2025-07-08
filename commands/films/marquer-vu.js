@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, EmbedBuilder } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
 const { updateListInChannel } = require('../../utils/listUpdater');
 
@@ -76,4 +76,36 @@ module.exports = {
             await updateListInChannel(interaction.client);
         }
     },
+
+    // === HANDLERS DE BOUTONS ===
+    
+    async handleMarkWatched(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[2]);
+        
+        // Marquer le film comme vu
+        const result = await dataManager.markAsWatched(movieId, interaction.user);
+        
+        if (!result) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de marquer le film comme vu.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        
+        await interaction.reply({
+            embeds: [new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle('✅ Film marqué comme vu')
+                .setDescription(`**${result.title}** a été marqué comme vu !`)
+                .setTimestamp()],
+            flags: MessageFlags.Ephemeral
+        });
+
+        // Mettre à jour la liste dans le canal défini
+        await updateListInChannel(interaction.client);
+    }
 };

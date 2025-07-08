@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, EmbedBuilder } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
 const { updateListInChannel } = require('../../utils/listUpdater');
 
@@ -76,4 +76,36 @@ module.exports = {
             await updateListInChannel(interaction.client);
         }
     },
+
+    // === HANDLERS DE BOUTONS ===
+    
+    async handleMarkUnwatched(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[2]);
+        
+        // Marquer le film comme non vu
+        const result = await dataManager.markAsUnwatched(movieId, interaction.user);
+        
+        if (!result) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de marquer le film comme non vu.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        
+        await interaction.reply({
+            embeds: [new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle('✅ Film marqué comme non vu')
+                .setDescription(`**${result.title}** a été remis dans la liste à regarder !`)
+                .setTimestamp()],
+            flags: MessageFlags.Ephemeral
+        });
+
+        // Mettre à jour la liste dans le canal défini
+        await updateListInChannel(interaction.client);
+    }
 };

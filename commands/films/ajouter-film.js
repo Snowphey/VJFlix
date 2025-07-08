@@ -196,7 +196,115 @@ module.exports = {
         });
     },
 
-    async handleMovieFound(interaction, movieData, originalTitle) {
+    // === HANDLERS DE BOUTONS ===
+    
+    async handleTMDbMovieSelection(interaction) {
+        await interaction.deferUpdate();
+
+        // Extraire l'ID depuis le customId (peut être tmdb ou ancien format)
+        let tmdbId;
+        if (interaction.customId.startsWith('select_tmdb_movie_')) {
+            tmdbId = interaction.customId.split('_')[3];
+        } else if (interaction.customId.startsWith('select_movie_')) {
+            tmdbId = interaction.customId.split('_')[2];
+        }
+
+        // Récupérer les détails complets du film
+        const movieData = await tmdbService.getMovieDetails(tmdbId);
+
+        if (!movieData) {
+            return await interaction.editReply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de récupérer les détails du film sélectionné.')
+                    .setTimestamp()],
+                components: []
+            });
+        }
+
+        // Afficher les détails du film avec confirmation
+        await this.showMovieConfirmation(interaction, movieData);
+    },
+
+    async showMovieConfirmation(interaction, movieData) {
+        // Créer l'embed de confirmation avec tous les détails
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('🎬 Confirmer l\'ajout du film')
+            .setDescription(`**${movieData.title}**`)
+            .addFields(
+                { name: 'Année', value: movieData.year?.toString() || 'N/A', inline: true }
+            );
+
+        // Ajouter l'ID TMDb
+        if (movieData.tmdbId) {
+            embed.addFields({ name: 'TMDb ID', value: movieData.tmdbId.toString(), inline: true });
+        }
+
+        if (movieData.director) {
+            embed.addFields({ name: 'Réalisateur', value: movieData.director, inline: true });
+        }
+
+        if (movieData.genre && movieData.genre.length > 0) {
+            embed.addFields({ name: 'Genres', value: movieData.genre.join(', '), inline: true });
+        }
+
+        // Support pour les notes TMDb
+        if (movieData.tmdbRating) {
+            embed.addFields({ name: 'Note TMDb', value: `${movieData.tmdbRating.toFixed(1)}/10`, inline: true });
+        }
+
+        if (movieData.plot) {
+            embed.addFields({ name: 'Synopsis', value: movieData.plot.length > 1024 ? movieData.plot.substring(0, 1021) + '...' : movieData.plot });
+        }
+
+        if (movieData.poster && movieData.poster !== 'N/A') {
+            embed.setThumbnail(movieData.poster);
+        }
+
+        embed.setFooter({ text: 'Voulez-vous ajouter ce film à la base de données ?' })
+            .setTimestamp();
+
+        // Boutons de confirmation
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`confirm_add_movie_${movieData.tmdbId}`)
+                    .setLabel('✅ Confirmer l\'ajout')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId('cancel_movie_add')
+                    .setLabel('❌ Annuler')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
+        await interaction.editReply({
+            embeds: [embed],
+            components: [row]
+        });
+    },
+
+    async handleConfirmAddMovie(interaction) {
+        await interaction.deferUpdate();
+
+        // Extraire l'ID TMDb depuis le customId
+        const tmdbId = interaction.customId.split('_')[3];
+
+        // Récupérer les détails complets du film
+        const movieData = await tmdbService.getMovieDetails(tmdbId);
+
+        if (!movieData) {
+            return await interaction.editReply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de récupérer les détails du film.')
+                    .setTimestamp()],
+                components: []
+            });
+        }
+
         // Ajouter le film à la base de données
         const result = await dataManager.addMovie(movieData, interaction.user);
         
@@ -211,12 +319,22 @@ module.exports = {
                             { name: 'ID en base', value: result.movie.id.toString(), inline: true },
                             { name: 'Ajouté le', value: new Date(result.movie.addedAt).toLocaleDateString('fr-FR'), inline: true }
                         )
-                        .setTimestamp()]
+                        .setTimestamp()],
+                    components: []
                 });
             }
+
+            return await interaction.editReply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Une erreur est survenue lors de l\'ajout du film.')
+                    .setTimestamp()],
+                components: []
+            });
         }
 
-        // Créer l'embed de confirmation
+        // Créer l'embed de confirmation d'ajout réussi
         const embed = new EmbedBuilder()
             .setColor('#00ff00')
             .setTitle('✅ Film ajouté à la base de données')
@@ -254,54 +372,50 @@ module.exports = {
 
         embed.setTimestamp();
 
-        // Bouton pour l'ajouter à la watchlist
+        // Boutons d'action
         const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`add_to_watchlist_${result.movie.id}`)
-                    .setLabel('Ajouter à la watchlist')
+                    .setCustomId(`mark_watched_${result.movie.id}`)
+                    .setLabel('Marquer comme vu')
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji('✅'),
+                new ButtonBuilder()
+                    .setCustomId(`rate_quick_${result.movie.id}`)
+                    .setLabel('Noter le film')
                     .setStyle(ButtonStyle.Primary)
-                    .setEmoji('📝')
+                    .setEmoji('⭐')
             );
 
         await interaction.editReply({
             embeds: [embed],
             components: [row]
         });
+
+        // Mettre à jour la liste dans le canal défini
+        const { updateListInChannel } = require('../../utils/listUpdater');
+        await updateListInChannel(interaction.client);
     },
 
-    async handleMultipleResults(interaction, searchResults, originalTitle) {
-        const embed = new EmbedBuilder()
-            .setColor('#ffaa00')
-            .setTitle('🔍 Plusieurs résultats trouvés')
-            .setDescription(`Plusieurs films correspondent à "${originalTitle}". Sélectionnez le bon :`)
-            .setTimestamp();
-
-        const buttons = [];
-        searchResults.forEach((movie, index) => {
-            embed.addFields({
-                name: `${index + 1}. ${movie.title} (${movie.year})`,
-                value: `Type: ${movie.type} | TMDB ID: ${movie.tmdbId}`,
-                inline: false
-            });
-
-            buttons.push(
-                new ButtonBuilder()
-                    .setCustomId(`select_movie_${movie.tmdbId}`)
-                    .setLabel(`${index + 1}`)
-                    .setStyle(ButtonStyle.Secondary)
-            );
+    async handleCancelMovieAdd(interaction) {
+        await interaction.update({
+            embeds: [new EmbedBuilder()
+                .setColor('#888888')
+                .setTitle('❌ Ajout annulé')
+                .setDescription('L\'ajout du film a été annulé.')
+                .setTimestamp()],
+            components: []
         });
+    },
 
-        // Diviser les boutons en lignes de 5 maximum
-        const rows = [];
-        for (let i = 0; i < buttons.length; i += 5) {
-            rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
-        }
-
-        await interaction.editReply({
-            embeds: [embed],
-            components: rows
+    async handleCancelMovieSearch(interaction) {
+        await interaction.update({
+            embeds: [new EmbedBuilder()
+                .setColor('#888888')
+                .setTitle('❌ Recherche annulée')
+                .setDescription('La recherche de film a été annulée.')
+                .setTimestamp()],
+            components: []
         });
     }
 };

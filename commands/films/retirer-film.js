@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
 
 module.exports = {
@@ -126,67 +126,97 @@ module.exports = {
         }
     },
 
+    // === HANDLERS DE BOUTONS ===
+    
     async handleConfirmation(interaction, movieId, confirmed) {
-        if (!confirmed) {
-            return await interaction.update({
-                embeds: [new EmbedBuilder()
-                    .setColor('#6c757d')
-                    .setTitle('❌ Suppression annulée')
-                    .setDescription('La suppression du film a été annulée.')
-                    .setTimestamp()],
-                components: []
-            });
+        if (confirmed) {
+            await this.handleConfirmRemove(interaction, movieId);
+        } else {
+            await this.handleCancelRemove(interaction);
         }
+    },
 
-        try {
-            // Effectuer la suppression
-            const result = await dataManager.removeMovie(movieId);
-            
-            if (!result.success) {
-                let message = 'Erreur lors de la suppression du film.';
-                if (result.reason === 'not_found') {
-                    message = `Aucun film trouvé avec l'ID ${movieId}.`;
-                }
-                
-                return await interaction.update({
-                    embeds: [new EmbedBuilder()
-                        .setColor('#ff0000')
-                        .setTitle('❌ Erreur')
-                        .setDescription(message)
-                        .setTimestamp()],
-                    components: []
-                });
-            }
-
-            // Confirmation de suppression
-            const successEmbed = new EmbedBuilder()
-                .setColor('#00ff00')
-                .setTitle('✅ Film supprimé')
-                .setDescription(`Le film **${result.movie.title}** a été supprimé définitivement de la base de données.`)
-                .addFields(
-                    { name: 'ID supprimé', value: result.movie.id.toString(), inline: true },
-                    { name: 'Titre', value: result.movie.title, inline: true },
-                    { name: 'Année', value: result.movie.year?.toString() || 'N/A', inline: true }
-                )
-                .setFooter({ text: 'Toutes les données associées (watchlist, films vus, notations) ont également été supprimées.' })
-                .setTimestamp();
-
-            await interaction.update({
-                embeds: [successEmbed],
-                components: []
-            });
-
-        } catch (error) {
-            console.error('Erreur lors de la suppression du film:', error);
-            
-            await interaction.update({
+    async handleConfirmRemove(interaction, movieId) {
+        // Supprimer le film de la base de données
+        const result = await dataManager.removeMovie(movieId);
+        
+        if (!result.success) {
+            return await interaction.update({
                 embeds: [new EmbedBuilder()
                     .setColor('#ff0000')
                     .setTitle('❌ Erreur')
-                    .setDescription('Une erreur s\'est produite lors de la suppression du film.')
+                    .setDescription('Impossible de supprimer le film de la watchlist.')
                     .setTimestamp()],
                 components: []
             });
         }
+        
+        await interaction.update({
+            embeds: [new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle('✅ Film supprimé')
+                .setDescription(`**${result.movie.title}** a été supprimé de la watchlist et de la base de données.`)
+                .setTimestamp()],
+            components: []
+        });
+
+        // Mettre à jour la liste dans le canal défini
+        const { updateListInChannel } = require('../../utils/listUpdater');
+        await updateListInChannel(interaction.client);
+    },
+
+    async handleCancelRemove(interaction) {
+        await interaction.update({
+            embeds: [new EmbedBuilder()
+                .setColor('#888888')
+                .setTitle('❌ Suppression annulée')
+                .setDescription('La suppression du film a été annulée.')
+                .setTimestamp()],
+            components: []
+        });
+    },
+
+    async handleRemoveFromWatchlist(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[3]);
+        
+        // Récupérer les informations du film avant suppression
+        const movie = await dataManager.getMovieById(movieId);
+        if (!movie) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Film non trouvé')
+                    .setDescription('Ce film n\'existe plus dans la base de données.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        // Demander confirmation
+        const embed = new EmbedBuilder()
+            .setColor('#ff9900')
+            .setTitle('⚠️ Confirmation de suppression')
+            .setDescription(`Êtes-vous sûr de vouloir supprimer **${movie.title}** de votre watchlist ?\n\n**⚠️ Attention : Cela supprimera définitivement le film de la base de données !**`)
+            .setTimestamp();
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`confirm_remove_${movieId}`)
+                    .setLabel('Confirmer la suppression')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🗑️'),
+                new ButtonBuilder()
+                    .setCustomId(`cancel_remove_${movieId}`)
+                    .setLabel('Annuler')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('❌')
+            );
+
+        await interaction.reply({
+            embeds: [embed],
+            components: [row],
+            flags: MessageFlags.Ephemeral
+        });
     }
 };

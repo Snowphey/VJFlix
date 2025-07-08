@@ -108,5 +108,86 @@ module.exports = {
                 flags: MessageFlags.Ephemeral
             });
         }
+    },
+
+    // === HANDLERS DE BOUTONS ===
+    
+    async handleMovieListPagination(interaction) {
+        const page = parseInt(interaction.customId.split('_')[3]);
+        const itemsPerPage = 20;
+        const offset = (page - 1) * itemsPerPage;
+
+        // Récupérer le nombre total de films
+        const totalCount = await dataManager.getTotalMovieCount();
+        const totalPages = Math.ceil(totalCount / itemsPerPage);
+        
+        // Récupérer les films pour cette page
+        const movies = await dataManager.getMoviesPaginated(offset, itemsPerPage);
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('🎬 Liste des films')
+            .setDescription(`Page ${page}/${totalPages} - ${totalCount} film(s) au total`)
+            .setTimestamp();
+
+        // Ajouter chaque film à l'embed
+        for (const movie of movies) {
+            const averageRating = await dataManager.getAverageRating(movie.id);
+            const ratingText = averageRating 
+                ? `⭐ ${averageRating.average}/5 (${averageRating.count} vote${averageRating.count > 1 ? 's' : ''})`
+                : 'Pas encore noté';
+
+            embed.addFields({
+                name: `ID: ${movie.id} - ${movie.title}`,
+                value: `Année: ${movie.year || 'N/A'} | Réalisateur: ${movie.director || 'N/A'}\n${ratingText}`,
+                inline: false
+            });
+        }
+
+        // Boutons de navigation
+        const components = [];
+        const navigationButtons = [];
+
+        if (page > 1) {
+            navigationButtons.push(
+                new ButtonBuilder()
+                    .setCustomId(`list_movies_page_${page - 1}`)
+                    .setLabel('◀ Page précédente')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+        }
+
+        if (page < totalPages) {
+            navigationButtons.push(
+                new ButtonBuilder()
+                    .setCustomId(`list_movies_page_${page + 1}`)
+                    .setLabel('Page suivante ▶')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+        }
+
+        if (navigationButtons.length > 0) {
+            components.push(new ActionRowBuilder().addComponents(navigationButtons));
+        }
+
+        // Boutons pour voir les détails des premiers films
+        const detailButtons = [];
+        for (let i = 0; i < Math.min(movies.length, 5); i++) {
+            detailButtons.push(
+                new ButtonBuilder()
+                    .setCustomId(`movie_details_${movies[i].id}`)
+                    .setLabel(`Détails #${movies[i].id}`)
+                    .setStyle(ButtonStyle.Primary)
+            );
+        }
+
+        if (detailButtons.length > 0) {
+            components.push(new ActionRowBuilder().addComponents(detailButtons));
+        }
+
+        await interaction.update({
+            embeds: [embed],
+            components: components
+        });
     }
 };
