@@ -213,13 +213,12 @@ module.exports = {
             );
         components.push(controlRow);
 
-        const response = await interaction.reply({ 
+        const message = await interaction.reply({ 
             embeds: [embed, EmbedUtils.createLivePollResultsEmbed(selectedMovies, new Map(), new Map(), 0, duration * 60 * 1000)], 
             components: components,
-            content: `📊 **Sondage actif pendant ${duration} minute(s) !**`
+            content: `📊 **Sondage actif pendant ${duration} minute(s) !**`,
+            fetchReply: true
         });
-        
-        const message = await interaction.fetchReply();
 
         // Stocker le sondage actif
         const pollData = {
