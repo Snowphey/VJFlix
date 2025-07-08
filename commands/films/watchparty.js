@@ -67,7 +67,7 @@ module.exports = {
             withResponse: true
         });
         
-        const fetchedMessage = response;
+        const fetchedMessage = response.resource.message;
 
         // Stocker les informations de la watchparty
         const watchpartyData = {

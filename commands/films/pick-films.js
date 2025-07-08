@@ -220,7 +220,7 @@ module.exports = {
             withResponse: true
         });
         
-        const message = response;
+        const message = response.resource.message;
 
         // Stocker le sondage actif
         const pollData = {
