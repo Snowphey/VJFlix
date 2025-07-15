@@ -112,17 +112,23 @@ module.exports = {
             voteType = 'maybe';
         }
 
-        // Retirer l'utilisateur de toutes les catégories
-        Object.keys(watchpartyData.participants).forEach(category => {
-            watchpartyData.participants[category] = watchpartyData.participants[category].filter(id => id !== userId);
-        });
+        // Vérifier si l'utilisateur a déjà voté pour cette catégorie
+        const alreadyVoted = watchpartyData.participants[voteType].includes(userId);
 
-        // Ajouter l'utilisateur à la nouvelle catégorie
-        watchpartyData.participants[voteType].push(userId);
+        if (alreadyVoted) {
+            // Si déjà voté, retirer le vote (enlève l'utilisateur de la catégorie)
+            watchpartyData.participants[voteType] = watchpartyData.participants[voteType].filter(id => id !== userId);
+        } else {
+            // Sinon, retirer l'utilisateur de toutes les catégories puis l'ajouter à la nouvelle
+            Object.keys(watchpartyData.participants).forEach(category => {
+                watchpartyData.participants[category] = watchpartyData.participants[category].filter(id => id !== userId);
+            });
+            watchpartyData.participants[voteType].push(userId);
+        }
 
         // Mettre à jour l'embed
         const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-        
+
         // Formatter les listes de participants
         const formatParticipants = (userIds) => {
             if (userIds.length === 0) return 'Aucun';
