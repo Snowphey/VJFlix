@@ -54,10 +54,16 @@ module.exports = {
 
             // Ajouter chaque film à l'embed
             for (const movie of movies) {
-                const averageRating = await dataManager.getAverageRating(movie.id);
-                const ratingText = averageRating 
-                    ? `⭐ ${averageRating.average}/5 (${averageRating.count} vote${averageRating.count > 1 ? 's' : ''})`
-                    : 'Pas encore noté';
+                const desireRating = await dataManager.getAverageDesireRating(movie.id);
+                let ratingText;
+                if (desireRating && desireRating.count > 0) {
+                    const avg = desireRating.average;
+                    const fullHearts = '💜'.repeat(Math.floor(avg));
+                    const emptyHearts = '🤍'.repeat(5 - Math.floor(avg));
+                    ratingText = `${avg}/5 ${fullHearts}${emptyHearts} (${desireRating.count} envie${desireRating.count > 1 ? 's' : ''})`;
+                } else {
+                    ratingText = 'Pas encore noté';
+                }
 
                 embed.addFields({
                     name: `ID: ${movie.id} - ${movie.title}`,
@@ -132,10 +138,16 @@ module.exports = {
 
         // Ajouter chaque film à l'embed
         for (const movie of movies) {
-            const averageRating = await dataManager.getAverageRating(movie.id);
-            const ratingText = averageRating 
-                ? `⭐ ${averageRating.average}/5 (${averageRating.count} vote${averageRating.count > 1 ? 's' : ''})`
-                : 'Pas encore noté';
+            const desireRating = await dataManager.getAverageDesireRating(movie.id);
+            let ratingText;
+            if (desireRating && desireRating.count > 0) {
+                const avg = desireRating.average;
+                const fullHearts = '💜'.repeat(Math.floor(avg));
+                const emptyHearts = '🤍'.repeat(5 - Math.floor(avg));
+                ratingText = `${avg}/5 ${fullHearts}${emptyHearts} (${desireRating.count} envie${desireRating.count > 1 ? 's' : ''})`;
+            } else {
+                ratingText = 'Pas encore noté';
+            }
 
             embed.addFields({
                 name: `ID: ${movie.id} - ${movie.title}`,

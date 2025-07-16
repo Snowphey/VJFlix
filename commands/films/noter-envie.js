@@ -40,6 +40,10 @@ module.exports = {
         const movieDbId = parseInt(interaction.options.getString('film'));
         const userId = interaction.user.id;
 
+        await this.buttonsDesireRating(interaction, movieDbId, userId);
+    },
+
+    async buttonsDesireRating(interaction, movieDbId, userId) {
         // Vérifier si le film existe
         const movie = await dataManager.getMovieById(movieDbId);
         if (!movie) {
@@ -167,6 +171,10 @@ module.exports = {
         const userId = interaction.user.id;
         const ratingValue = parseInt(rating);
 
+        await this.desireRate(interaction, movieDbId, userId, ratingValue); 
+    },
+
+    async desireRate(interaction, movieDbId, userId, ratingValue) {
         // Vérifier si le film existe
         const movie = await dataManager.getMovieById(parseInt(movieDbId));
         if (!movie) {
@@ -302,5 +310,19 @@ module.exports = {
             embeds: [embed],
             components: []
         });
+    },
+
+    async handleDesireQuick(interaction) {
+        const movieId = parseInt(interaction.customId.split('_')[2]);
+        const userId = interaction.user.id;
+
+        await this.buttonsDesireRating(interaction, movieId, userId);
+    },
+
+    async handleSetDesire(interaction) {
+        const [ , , movieId, desire ] = interaction.customId.split('_');
+        const userId = interaction.user.id;
+
+        await this.desireRate(interaction, movieId, userId, parseInt(desire));
     }
 };

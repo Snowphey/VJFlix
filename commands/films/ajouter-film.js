@@ -381,10 +381,10 @@ module.exports = {
                     .setStyle(ButtonStyle.Success)
                     .setEmoji('✅'),
                 new ButtonBuilder()
-                    .setCustomId(`rate_quick_${result.movie.id}`)
-                    .setLabel('Noter le film')
+                    .setCustomId(`desire_quick_${result.movie.id}`)
+                    .setLabel('Noter l\'envie')
                     .setStyle(ButtonStyle.Primary)
-                    .setEmoji('⭐')
+                    .setEmoji('💜')
             );
 
         await interaction.editReply({

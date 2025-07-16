@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
+const { handleButtonsDesireRating, buttonsDesireRating, desireRate } = require('./noter-envie');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -63,6 +64,20 @@ module.exports = {
     },
 
     async displayMovieDetails(interaction, movie) {
+        // Afficher la note d'envie de l'utilisateur si elle existe
+        let userDesire = null;
+        if (interaction.user) {
+            userDesire = await dataManager.getUserDesireRating(movie.id, interaction.user.id);
+        }
+
+        if (userDesire) {
+            const userHearts = '💜'.repeat(userDesire.desire_rating) + '🤍'.repeat(5 - userDesire.desire_rating);
+            embed.addFields({
+                name: 'Votre envie',
+                value: `${userDesire.desire_rating}/5 ${userHearts}`,
+                inline: true
+            });
+        }
         const embed = new EmbedBuilder()
             .setColor('#00ff00')
             .setTitle(movie.title)
@@ -88,17 +103,19 @@ module.exports = {
             embed.addFields({ name: 'Acteurs principaux', value: movie.actors.slice(0, 3).join(', '), inline: false });
         }
 
-        // Notations
-        const averageRating = await dataManager.getAverageRating(movie.id);
-        if (averageRating) {
-            const avgStars = '⭐'.repeat(Math.floor(averageRating.average)) + '☆'.repeat(5 - Math.floor(averageRating.average));
+        // Notation d'envie uniquement
+        const desireRating = await dataManager.getAverageDesireRating(movie.id);
+        if (desireRating) {
+            const ratingText = desireRating 
+            ? `💜 ${desireRating.average}/5 (${desireRating.count} envie${desireRating.count > 1 ? 's' : ''})`
+            : 'Pas encore noté';
+
             embed.addFields(
-                { name: 'Note moyenne', value: `${averageRating.average}/5 ${avgStars}`, inline: true },
-                { name: 'Nombre de votes', value: averageRating.count.toString(), inline: true }
-            );
-        } else {
-            embed.addFields({ name: 'Note moyenne', value: 'Pas encore noté', inline: true });
+                { name: 'Envie moyenne', value: ratingText, inline: true },
+                { name: 'Nombre de votes', value: desireRating.count.toString(), inline: true }
+            )
         }
+        
 
         if (movie.tmdbRating) {
             embed.addFields({ name: 'Note TMDB', value: `${movie.tmdbRating}/10`, inline: true });
@@ -136,13 +153,13 @@ module.exports = {
             );
         }
 
-        // Bouton pour noter le film
+        // Bouton pour noter l'envie
         row.addComponents(
             new ButtonBuilder()
-                .setCustomId(`rate_quick_${movie.id}`)
-                .setLabel('Noter le film')
+                .setCustomId(`desire_quick_${movie.id}`)
+                .setLabel('Noter l\'envie')
                 .setStyle(ButtonStyle.Primary)
-                .setEmoji('⭐')
+                .setEmoji('💜')
         );
 
         // Bouton pour supprimer de la watchlist
@@ -197,17 +214,6 @@ module.exports = {
         // Genres
         if (movie.genre && movie.genre.length > 0) {
             embed.addFields({ name: 'Genres', value: movie.genre.join(', '), inline: false });
-        }
-
-        // Note moyenne
-        const averageRating = await dataManager.getAverageRating(movie.id);
-        if (averageRating) {
-            const stars = '⭐'.repeat(Math.floor(averageRating.average)) + '☆'.repeat(5 - Math.floor(averageRating.average));
-            embed.addFields({ 
-                name: 'Note moyenne', 
-                value: `${averageRating.average.toFixed(1)}/5 ${stars} (${averageRating.count} vote${averageRating.count > 1 ? 's' : ''})`, 
-                inline: false 
-            });
         }
 
         // Envie moyenne
@@ -268,13 +274,13 @@ module.exports = {
             );
         }
 
-        // Bouton noter le film
+        // Bouton noter l'envie
         row.addComponents(
             new ButtonBuilder()
-                .setCustomId(`rate_quick_${movie.id}`)
-                .setLabel('Noter le film')
+                .setCustomId(`desire_quick_${movie.id}`)
+                .setLabel('Noter l\'envie')
                 .setStyle(ButtonStyle.Primary)
-                .setEmoji('⭐')
+                .setEmoji('💜')
         );
 
         // Bouton pour supprimer de la watchlist
@@ -297,5 +303,5 @@ module.exports = {
                 components: [row]
             });
         }
-    }
+    },
 };

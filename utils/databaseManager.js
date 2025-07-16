@@ -64,16 +64,6 @@ class DatabaseManager {
                 added_by_display_name TEXT
             )`,
 
-            // Table des notations
-            `CREATE TABLE IF NOT EXISTS ratings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                movie_id INTEGER NOT NULL,
-                user_id TEXT NOT NULL,
-                rating INTEGER NOT NULL CHECK (rating >= 0 AND rating <= 5),
-                rated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (movie_id) REFERENCES movies (id),
-                UNIQUE (movie_id, user_id)
-            )`,
 
             // Table des envies de regarder
             `CREATE TABLE IF NOT EXISTS watch_desires (
@@ -105,8 +95,6 @@ class DatabaseManager {
             'CREATE INDEX IF NOT EXISTS idx_movies_tmdb_rating ON movies (tmdb_rating)',
             'CREATE INDEX IF NOT EXISTS idx_movies_popularity ON movies (popularity)',
             'CREATE INDEX IF NOT EXISTS idx_movies_watched ON movies (watched)',
-            'CREATE INDEX IF NOT EXISTS idx_ratings_movie_id ON ratings (movie_id)',
-            'CREATE INDEX IF NOT EXISTS idx_ratings_user_id ON ratings (user_id)',
             'CREATE INDEX IF NOT EXISTS idx_watch_desires_movie_id ON watch_desires (movie_id)',
             'CREATE INDEX IF NOT EXISTS idx_watch_desires_user_id ON watch_desires (user_id)'
         ];
@@ -246,8 +234,6 @@ class DatabaseManager {
             }
 
             // Supprimer toutes les références au film
-            // 1. Supprimer les notations
-            await this.run('DELETE FROM ratings WHERE movie_id = ?', [id]);
             
             // 2. Supprimer le film (qui contient maintenant les données de watchlist)
             await this.run('DELETE FROM movies WHERE id = ?', [id]);
@@ -435,115 +421,6 @@ class DatabaseManager {
 
     // === MÉTHODES POUR LES NOTATIONS ===
 
-    async rateMovie(movieId, userId, rating) {
-        try {
-            if (rating < 0 || rating > 5) {
-                return { success: false, reason: 'invalid_rating' };
-            }
-
-            const movie = await this.get('SELECT id FROM movies WHERE id = ?', [movieId]);
-            if (!movie) {
-                return { success: false, reason: 'movie_not_found' };
-            }
-
-            await this.run(`
-                INSERT OR REPLACE INTO ratings (movie_id, user_id, rating)
-                VALUES (?, ?, ?)
-            `, [movieId, userId, rating]);
-
-            return { success: true };
-        } catch (error) {
-            console.error('Erreur lors de la notation:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    async removeUserRating(movieId, userId) {
-        try {
-            const movie = await this.get('SELECT id FROM movies WHERE id = ?', [movieId]);
-            if (!movie) {
-                return { success: false, reason: 'movie_not_found' };
-            }
-
-            const rating = await this.get(
-                'SELECT * FROM ratings WHERE movie_id = ? AND user_id = ?',
-                [movieId, userId]
-            );
-
-            if (!rating) {
-                return { success: false, reason: 'rating_not_found' };
-            }
-
-            await this.run('DELETE FROM ratings WHERE movie_id = ? AND user_id = ?', [movieId, userId]);
-            return { success: true };
-        } catch (error) {
-            console.error('Erreur lors de la suppression de la note:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    async getUserRating(movieId, userId) {
-        const rating = await this.get(
-            'SELECT * FROM ratings WHERE movie_id = ? AND user_id = ?',
-            [movieId, userId]
-        );
-        return rating;
-    }
-
-    async getMovieRatings(movieId) {
-        const ratings = await this.all('SELECT * FROM ratings WHERE movie_id = ?', [movieId]);
-        return ratings;
-    }
-
-    async getAverageRating(movieId) {
-        const result = await this.get(`
-            SELECT AVG(rating) as average, COUNT(*) as count
-            FROM ratings WHERE movie_id = ?
-        `, [movieId]);
-
-        if (!result || result.count === 0) return null;
-
-        return {
-            average: Math.round(result.average * 10) / 10,
-            count: result.count
-        };
-    }
-
-    async getTopRatedMovies(limit = 10) {
-        const movies = await this.all(`
-            SELECT m.*, AVG(r.rating) as avg_rating, COUNT(r.rating) as rating_count
-            FROM movies m
-            JOIN ratings r ON m.id = r.movie_id
-            GROUP BY m.id
-            HAVING rating_count >= 2
-            ORDER BY avg_rating DESC, rating_count DESC
-            LIMIT ?
-        `, [limit]);
-
-        return movies.map(movie => ({
-            ...this.formatMovie(movie),
-            rating: {
-                average: Math.round(movie.avg_rating * 10) / 10,
-                count: movie.rating_count
-            }
-        }));
-    }
-
-    async getUserRatings(userId) {
-        const ratings = await this.all(`
-            SELECT r.*, m.*
-            FROM ratings r
-            JOIN movies m ON r.movie_id = m.id
-            WHERE r.user_id = ?
-            ORDER BY r.rated_at DESC
-        `, [userId]);
-
-        return ratings.map(rating => ({
-            movie: this.formatMovie(rating),
-            rating: rating.rating,
-            ratedAt: rating.rated_at
-        }));
-    }
 
     // === MÉTHODES POUR LES NOTES D'ENVIE ===
 

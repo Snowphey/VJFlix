@@ -211,56 +211,31 @@ module.exports = {
                         flags: MessageFlags.Ephemeral 
                     });
                 }
-            
-            // === HANDLERS POUR NOTER FILMS ===
-            } else if (interaction.customId.startsWith('rate_')) {
-                if (interaction.customId.startsWith('rate_quick_')) {
-                    const noterFilmCommand = require('../commands/films/noter-film.js');
-                    try {
-                        await noterFilmCommand.handleQuickRatingInterface(interaction);
-                    } catch (error) {
-                        console.error('Erreur lors de la notation du film:', error);
-                        await interaction.reply({ 
-                            content: 'Une erreur est survenue lors de la notation du film.', 
-                            flags: MessageFlags.Ephemeral 
-                        });
-                    }
-                } else {
-                    const noterFilmCommand = require('../commands/films/noter-film.js');
-                    try {
-                        await noterFilmCommand.handleMovieRating(interaction);
-                    } catch (error) {
-                        console.error('Erreur lors de la notation du film:', error);
-                        await interaction.reply({ 
-                            content: 'Une erreur est survenue lors de la notation du film.', 
-                            flags: MessageFlags.Ephemeral 
-                        });
-                    }
-                }
-            } else if (interaction.customId.startsWith('remove_rating_')) {
-                const noterFilmCommand = require('../commands/films/noter-film.js');
-                try {
-                    await noterFilmCommand.handleRemoveRating(interaction);
-                } catch (error) {
-                    console.error('Erreur lors de la suppression de la note:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue lors de la suppression de la note.', 
-                        flags: MessageFlags.Ephemeral 
-                    });
-                }
-            } else if (interaction.customId.startsWith('cancel_rating_')) {
-                const noterFilmCommand = require('../commands/films/noter-film.js');
-                try {
-                    await noterFilmCommand.handleCancelRating(interaction);
-                } catch (error) {
-                    console.error('Erreur lors de l\'annulation:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue.', 
-                        flags: MessageFlags.Ephemeral 
-                    });
-                }
+
             
             // === HANDLERS POUR NOTER ENVIE ===
+            } else if (interaction.customId.startsWith('desire_quick_')) {
+                const noterEnvieCommand = require('../commands/films/noter-envie.js');
+                try {
+                    await noterEnvieCommand.handleDesireQuick(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de la notation rapide d\'envie:', error);
+                    await interaction.reply({ 
+                        content: 'Une erreur est survenue lors de la notation d\'envie.', 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
+            } else if (interaction.customId.startsWith('set_desire_')) {
+                const noterEnvieCommand = require('../commands/films/noter-envie.js');
+                try {
+                    await noterEnvieCommand.handleSetDesire(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de la sélection de la note d\'envie:', error);
+                    await interaction.reply({ 
+                        content: 'Une erreur est survenue lors de la sélection de la note d\'envie.', 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
             } else if (interaction.customId.startsWith('desire_')) {
                 const noterEnvieCommand = require('../commands/films/noter-envie.js');
                 try {

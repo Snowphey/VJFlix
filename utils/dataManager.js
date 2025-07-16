@@ -129,35 +129,7 @@ class DataManagerAdapter {
 
     
 
-    // === SYSTÈME DE NOTATION ===
 
-    async rateMovie(movieDbId, userId, rating) {
-        return await this.db.rateMovie(movieDbId, userId, rating);
-    }
-
-    async removeUserRating(movieDbId, userId) {
-        return await this.db.removeUserRating(movieDbId, userId);
-    }
-
-    async getUserRating(movieDbId, userId) {
-        return await this.db.getUserRating(movieDbId, userId);
-    }
-
-    async getMovieRatings(movieDbId) {
-        return await this.db.getMovieRatings(movieDbId);
-    }
-
-    async getAverageRating(movieDbId) {
-        return await this.db.getAverageRating(movieDbId);
-    }
-
-    async getTopRatedMovies(limit = 10) {
-        return await this.db.getTopRatedMovies(limit);
-    }
-
-    async getUserRatings(userId) {
-        return await this.db.getUserRatings(userId);
-    }
 
     // === SYSTÈME DE NOTATION D'ENVIE ===
 

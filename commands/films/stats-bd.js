@@ -14,14 +14,15 @@ module.exports = {
             const watchlist = await dataManager.getUnwatchedMovies();
             const watchedMovies = await dataManager.getWatchedMovies();
             const allMovies = await dataManager.getMovies();
-            const topRated = await dataManager.getTopRatedMovies(3);
+            // Top 3 des films selon l'envie
+            const topDesire = await dataManager.getMostDesiredMovies(3);
 
-            // Compter les notations
-            const ratingsCount = await dataManager.db.get('SELECT COUNT(*) as count FROM ratings');
-            const ratedMoviesCount = await dataManager.db.get('SELECT COUNT(DISTINCT movie_id) as count FROM ratings');
+            // Compter les notations d'envie
+            const desireRatingsCount = await dataManager.db.get('SELECT COUNT(*) as count FROM watch_desires');
+            const desireRatedMoviesCount = await dataManager.db.get('SELECT COUNT(DISTINCT movie_id) as count FROM watch_desires');
 
             const embed = new EmbedBuilder()
-                .setColor('#0099ff')
+                .setColor('#9932CC')
                 .setTitle('📊 Statistiques de la base de données')
                 .setTimestamp();
 
@@ -30,20 +31,22 @@ module.exports = {
                 { name: '🎬 Films en base', value: allMovies.length.toString(), inline: true },
                 { name: '📝 Films en watchlist', value: watchlist.length.toString(), inline: true },
                 { name: '✅ Films vus', value: watchedMovies.length.toString(), inline: true },
-                { name: '⭐ Total des notes', value: ratingsCount.count.toString(), inline: true },
-                { name: '🎯 Films notés', value: ratedMoviesCount.count.toString(), inline: true },
-                { name: '📈 Taux de notation', value: allMovies.length > 0 ? `${Math.round((ratedMoviesCount.count / allMovies.length) * 100)}%` : '0%', inline: true }
+                { name: '💜 Total des envies', value: desireRatingsCount.count.toString(), inline: true },
+                { name: '🎯 Films avec envie', value: desireRatedMoviesCount.count.toString(), inline: true },
+                { name: '📈 Taux d\'envie', value: allMovies.length > 0 ? `${Math.round((desireRatedMoviesCount.count / allMovies.length) * 100)}%` : '0%', inline: true }
             );
 
-            // Top 3 des films les mieux notés
-            if (topRated.length > 0) {
-                const topText = topRated.map((movie, index) => {
+            // Top 3 des films avec la meilleure envie
+            if (topDesire.length > 0) {
+                const topText = topDesire.map((movie, index) => {
                     const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
-                    const stars = '⭐'.repeat(Math.floor(movie.rating.average));
-                    return `${medal} ${movie.title} - ${movie.rating.average}/5 ${stars}`;
+                    const avg = movie.desireRating?.average || 0;
+                    const fullHearts = '💜'.repeat(Math.floor(avg));
+                    const emptyHearts = '🤍'.repeat(5 - Math.floor(avg));
+                    return `${medal} ${movie.title} - ${avg}/5 ${fullHearts}${emptyHearts}`;
                 }).join('\n');
 
-                embed.addFields({ name: '🏆 Top films', value: topText, inline: false });
+                embed.addFields({ name: '🏆 Top envies', value: topText, inline: false });
             }
 
             // Statistiques par genre si disponible
