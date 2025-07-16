@@ -293,12 +293,12 @@ class DatabaseManager {
         return result.count;
     }
 
-    async getMoviesPaginated(offset = 0, limit = 20) {
+    async getMoviesPaginated(offset = 0, limit = 100) {
         const movies = await this.all('SELECT * FROM movies ORDER BY added_at DESC LIMIT ? OFFSET ?', [limit, offset]);
         return movies.map(movie => this.formatMovie(movie));
     }
 
-    async getMoviesNotInWatchlist(offset = 0, limit = 20) {
+    async getMoviesNotInWatchlist(offset = 0, limit = 100) {
         // Cette méthode n'est plus nécessaire car tous les films sont dans la watchlist
         // Renvoyons une liste vide pour la compatibilité
         return [];
@@ -343,7 +343,7 @@ class DatabaseManager {
         };
     }
 
-    async getUnwatchedMovies(offset = 0, limit = 20) {
+    async getUnwatchedMovies(offset = 0, limit = 100) {
         const movies = await this.all(`
             SELECT * FROM movies 
             WHERE watched = FALSE
@@ -354,7 +354,7 @@ class DatabaseManager {
         return movies.map(movie => this.formatMovie(movie));
     }
 
-    async getWatchedMovies(offset = 0, limit = 20) {
+    async getWatchedMovies(offset = 0, limit = 100) {
         const movies = await this.all(`
             SELECT * FROM movies 
             WHERE watched = TRUE

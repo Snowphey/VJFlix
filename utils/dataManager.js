@@ -13,11 +13,11 @@ class DataManagerAdapter {
         return await this.db.getWatchedMovies();
     }
 
-    async getUnwatchedMovies(offset = 0, limit = 20) {
+    async getUnwatchedMovies(offset = 0, limit = 100) {
         return await this.db.getUnwatchedMovies(offset, limit);
     }
 
-    async getWatchedMovies(offset = 0, limit = 20) {
+    async getWatchedMovies(offset = 0, limit = 100) {
         return await this.db.getWatchedMovies(offset, limit);
     }
 
@@ -115,11 +115,11 @@ class DataManagerAdapter {
         return await this.db.getTotalMovieCount();
     }
 
-    async getMoviesPaginated(offset = 0, limit = 20) {
+    async getMoviesPaginated(offset = 0, limit = 100) {
         return await this.db.getMoviesPaginated(offset, limit);
     }
 
-    async getMoviesNotInWatchlist(offset = 0, limit = 20) {
+    async getMoviesNotInWatchlist(offset = 0, limit = 100) {
         return await this.db.getMoviesNotInWatchlist(offset, limit);
     }
 
