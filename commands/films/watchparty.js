@@ -1,5 +1,6 @@
 const { MessageFlags, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder, ComponentType } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
+const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -189,27 +190,20 @@ module.exports = {
             // Ajouter les top 5 recommandations
             result.movies.slice(0, 5).forEach((movie, index) => {
                 let description = '';
-                
                 if (movie.averageDesire > 0) {
-                    const stars = '⭐'.repeat(Math.floor(movie.averageDesire)) + 
-                                 (movie.averageDesire % 1 >= 0.5 ? '⭐' : '') +
-                                 '☆'.repeat(Math.max(0, 5 - Math.ceil(movie.averageDesire)));
-                    
+                    const stars = EmbedUtils.getDesireStars(movie.averageDesire);
                     description = `**Envie moyenne :** ${movie.averageDesire.toFixed(1)}/5 ${stars}\n` +
                                  `**Votes :** ${movie.voteCount} participant(s)\n`;
                 } else {
                     description = `**Pas encore noté en envie**\n`;
                 }
-                
-                description += `**Année :** ${movie.year || 'N/A'}`;
+                description += `**Année :** ${movie.year || 'N/A'}\n`;
                 if (movie.director) {
-                    description += ` | **Réalisateur :** ${movie.director}`;
+                    description += ` **Réalisateur :** ${movie.director}`;
                 }
-                
                 embed.addFields({
                     name: `${index + 1}. ${movie.title}`,
-                    value: description,
-                    inline: true
+                    value: description
                 });
             });
 
