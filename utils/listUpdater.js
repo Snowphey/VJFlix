@@ -18,7 +18,7 @@ async function updateListInChannel(client) {
         const watchedlistEmbed = EmbedUtils.createWatchedListEmbed(watchedlist);
 
         // Toujours envoyer les embeds, même si les listes sont vides
-        const embeds = [watchlistEmbed, watchedlistEmbed];
+        const embeds = [watchedlistEmbed, watchlistEmbed];
 
         if (settings.listMessageId) {
             try {

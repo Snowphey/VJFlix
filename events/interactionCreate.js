@@ -295,6 +295,8 @@ module.exports = {
                         await watchpartyCommand.handleRecommendations(interaction);
                     } else if (interaction.customId === 'watchparty_end') {
                         await watchpartyCommand.handleEndWatchparty(interaction);
+                    } else if (interaction.customId === 'watchparty_delete') {
+                        await watchpartyCommand.handleDeleteWatchparty(interaction);
                     }
                 } catch (error) {
                     console.error('Erreur lors de l\'interaction watchparty:', error);

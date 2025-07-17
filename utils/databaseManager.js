@@ -64,6 +64,17 @@ class DatabaseManager {
                 added_by_display_name TEXT
             )`,
 
+            // Table des watchparties
+            `CREATE TABLE IF NOT EXISTS watchparties (
+                messageId TEXT PRIMARY KEY,
+                channelId TEXT NOT NULL,
+                date TEXT NOT NULL,
+                organizer TEXT NOT NULL,
+                participants TEXT NOT NULL, -- JSON array
+                createdAt TEXT NOT NULL,
+                updatedAt TEXT NOT NULL,
+                isOpen INTEGER NOT NULL DEFAULT 1
+            )`,
 
             // Table des envies de regarder
             `CREATE TABLE IF NOT EXISTS watch_desires (
@@ -537,146 +548,52 @@ class DatabaseManager {
 
     // === MÉTHODES POUR LES WATCHPARTIES ===
 
+    // CRUD pour les watchparties
+    async createWatchparty({ messageId, channelId, date, organizer, participants, createdAt, updatedAt, isOpen }) {
+        return await this.run(
+            `INSERT INTO watchparties (messageId, channelId, date, organizer, participants, createdAt, updatedAt, isOpen)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [messageId, channelId, date, organizer, JSON.stringify(participants), createdAt, updatedAt, isOpen ? 1 : 0]
+        );
+    }
+
+    async getOpenWatchpartyByChannel(channelId) {
+        return await this.get(
+            `SELECT * FROM watchparties WHERE channelId = ? AND isOpen = 1`,
+            [channelId]
+        );
+    }
+
+    async getWatchpartyByMessageId(messageId) {
+        return await this.get(
+            `SELECT * FROM watchparties WHERE messageId = ?`,
+            [messageId]
+        );
+    }
+
+    async updateWatchpartyParticipants(messageId, participants, updatedAt) {
+        return await this.run(
+            `UPDATE watchparties SET participants = ?, updatedAt = ? WHERE messageId = ?`,
+            [JSON.stringify(participants), updatedAt, messageId]
+        );
+    }
+
+    async closeWatchparty(messageId, updatedAt) {
+        return await this.run(
+            `UPDATE watchparties SET isOpen = 0, updatedAt = ? WHERE messageId = ?`,
+            [updatedAt, messageId]
+        );
+    }
+
+    async deleteWatchparty(messageId) {
+        return await this.run(
+            `DELETE FROM watchparties WHERE messageId = ?`,
+            [messageId]
+        );
+    }
+
     async getMovieRecommendationsForUsers(userIds) {
-        if (!userIds || userIds.length === 0) {
-            return [];
-        }
-
-        const placeholders = userIds.map(() => '?').join(',');
-        const userCount = userIds.length;
-        let movies = [];
-        let criteriaUsed = '';
-
-        // Étape 1 : Films où TOUS les participants ont une note d'envie
-        movies = await this.all(`
-            SELECT m.*, wd.user_id, wd.desire_rating
-            FROM movies m
-            INNER JOIN watch_desires wd ON m.id = wd.movie_id
-            WHERE m.watched = 0 
-              AND wd.user_id IN (${placeholders})
-              AND m.id IN (
-                  SELECT movie_id 
-                  FROM watch_desires 
-                  WHERE user_id IN (${placeholders})
-                  GROUP BY movie_id 
-                  HAVING COUNT(DISTINCT user_id) = ?
-              )
-            ORDER BY wd.desire_rating DESC, m.title ASC
-        `, [...userIds, ...userIds, userCount]);
-
-        if (movies.length > 0) {
-            criteriaUsed = 'all_participants';
-        }
-
-        // Étape 2 : Si aucun film trouvé, films où AU MOINS UN participant a une note d'envie
-        if (movies.length === 0) {
-            movies = await this.all(`
-                SELECT DISTINCT m.*, wd.user_id, wd.desire_rating
-                FROM movies m
-                INNER JOIN watch_desires wd ON m.id = wd.movie_id
-                WHERE m.watched = 0 
-                  AND wd.user_id IN (${placeholders})
-                ORDER BY wd.desire_rating DESC, m.title ASC
-            `, userIds);
-            
-            if (movies.length > 0) {
-                criteriaUsed = 'some_participants';
-            }
-        }
-
-        // Étape 3 : Si toujours aucun film, prendre TOUS les films non vus
-        if (movies.length === 0) {
-            movies = await this.all(`
-                SELECT DISTINCT m.*, 
-                       wd.user_id, wd.desire_rating
-                FROM movies m
-                LEFT JOIN watch_desires wd ON m.id = wd.movie_id AND wd.user_id IN (${placeholders})
-                WHERE m.watched = 0 
-                ORDER BY m.title ASC
-            `, userIds);
-            
-            criteriaUsed = 'all_unwatched';
-        }
-
-        // Grouper les films avec leurs notes d'envie
-        const moviesMap = new Map();
         
-        movies.forEach(row => {
-            const movieId = row.id;
-            
-            if (!moviesMap.has(movieId)) {
-                moviesMap.set(movieId, {
-                    id: row.id,
-                    title: row.title,
-                    year: row.year,
-                    director: row.director,
-                    genre: row.genre ? JSON.parse(row.genre) : [],
-                    poster: row.poster,
-                    desires: [],
-                    totalDesire: 0,
-                    participantCount: 0,
-                    maxDesire: 0
-                });
-            }
-            
-            if (row.user_id && row.desire_rating !== null) {
-                moviesMap.get(movieId).desires.push({
-                    userId: row.user_id,
-                    rating: row.desire_rating
-                });
-            }
-        });
-
-        // Calculer les scores et trier par ordre de préférence
-        const recommendations = Array.from(moviesMap.values()).map(movie => {
-            // Calculer le score total et le nombre de participants ayant noté
-            movie.totalDesire = movie.desires.reduce((sum, desire) => sum + desire.rating, 0);
-            movie.participantCount = movie.desires.length;
-            movie.averageDesire = movie.participantCount > 0 ? movie.totalDesire / movie.participantCount : 0;
-            movie.maxDesire = movie.desires.length > 0 ? Math.max(...movie.desires.map(d => d.rating)) : 0;
-            
-            return movie;
-        });
-
-        // Trier par ordre de préférence selon les critères utilisés
-        if (criteriaUsed === 'all_participants') {
-            // Trier par note moyenne décroissante (tous les participants ont noté)
-            recommendations.sort((a, b) => {
-                if (a.averageDesire !== b.averageDesire) {
-                    return b.averageDesire - a.averageDesire;
-                }
-                return b.totalDesire - a.totalDesire;
-            });
-        } else if (criteriaUsed === 'some_participants') {
-            // Trier par note maximale décroissante, puis par nombre de participants
-            recommendations.sort((a, b) => {
-                if (a.maxDesire !== b.maxDesire) {
-                    return b.maxDesire - a.maxDesire;
-                }
-                if (a.participantCount !== b.participantCount) {
-                    return b.participantCount - a.participantCount;
-                }
-                return b.averageDesire - a.averageDesire;
-            });
-        } else {
-            // Trier par nombre de participants ayant noté, puis par note moyenne
-            recommendations.sort((a, b) => {
-                if (a.participantCount !== b.participantCount) {
-                    return b.participantCount - a.participantCount;
-                }
-                if (a.averageDesire !== b.averageDesire) {
-                    return b.averageDesire - a.averageDesire;
-                }
-                return a.title.localeCompare(b.title);
-            });
-        }
-
-        // Ajouter les informations sur les critères utilisés
-        return {
-            movies: recommendations,
-            criteriaUsed: criteriaUsed,
-            totalParticipants: userCount
-        };
     }
 
     // === MÉTHODES POUR LES PARAMÈTRES ===
