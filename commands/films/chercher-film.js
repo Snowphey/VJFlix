@@ -111,8 +111,23 @@ module.exports = {
                 { name: 'Envie moyenne', value: ratingText, inline: true },
                 { name: 'Nombre de votes', value: desireRating.count.toString(), inline: true }
             );
+
+            // Afficher la liste des votants si au moins 1
+            if (desireRating.count > 0) {
+                const ratings = await databaseManager.getMovieDesireRatings(movie.id);
+                if (ratings && ratings.length > 0) {
+                    // Afficher la mention Discord de chaque votant (userId)
+                    const voterMentions = ratings.slice(0, 10).map(r => `<@${r.user_id}>`);
+                    const displayNames = voterMentions.join(', ');
+                    const more = ratings.length > 10 ? `, ...(+${ratings.length - 10})` : '';
+                    embed.addFields({
+                        name: `Votant${ratings.length > 1 ? 's' : ''}`,
+                        value: displayNames + more,
+                        inline: false
+                    });
+                }
+            }
         }
-        
 
         if (movie.tmdbRating) {
             embed.addFields({ name: 'Note TMDB', value: `${movie.tmdbRating}/10`, inline: true });

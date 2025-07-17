@@ -181,38 +181,13 @@ module.exports = {
             }
 
             // Générer les recommandations
-            const { text, result } = await this.getMovieRecommendations(availableUsers);
+            const { text } = await this.getMovieRecommendations(availableUsers);
 
-            // Construire l'embed
+            // Construire l'embed avec la description textuelle formatée
             const embed = new EmbedBuilder()
                 .setColor('#9932CC')
                 .setTitle('🎯 Recommandations pour la watchparty')
-                .setDescription('Voici les 5 recommandations, classées par priorité de critère :')
-
-            // Afficher tous les critères dans la légende, même ceux non utilisés
-            const catText = [
-                '🎯 Tous les participants',
-                '⚡ Au moins un participant',
-                '📋 Non vus aléatoires'
-            ].join('\n');
-            embed.addFields({ name: 'Légende', value: catText, inline: false });
-
-            // Ajouter chaque film en champ
-            for (const entry of result) {
-                let value = `${entry.legend}`;
-                if (entry.ratingStr) value += `\n${entry.ratingStr}`;
-                if (entry.year) value += `\nAnnée : ${entry.year}`;
-                if (entry.director) value += `\nRéalisateur : ${entry.director}`;
-                embed.addFields({ name: `${entry.idx}. ${entry.title}`, value, inline: false });
-            }
-
-            // Ajouter la liste des participants en champ dédié
-            const participantsList = availableUsers.map(id => `<@${id}>`).join(', ');
-            embed.addFields({
-                name: '👥 Participants pris en compte',
-                value: participantsList || 'Aucun',
-                inline: false
-            });
+                .setDescription(text);
 
             return await interaction.editReply({
                 embeds: [embed],
@@ -315,39 +290,58 @@ module.exports = {
             } else {
                 legend = `📋 Film non vu (plus d'envie pour recommander)`;
             }
-            // Rating moyen
-            let ratingStr = '';
-            if (ratings.length) {
-                const mean = avg(ratings);
-                const meanStr = mean.toFixed(1);
-                const hearts = '💜'.repeat(Math.round(mean));
-                ratingStr = `Envie moyenne : ${meanStr}/5 ${hearts}`;
-            }
             return {
                 idx: idx + 1,
                 title: movie.title,
                 legend,
-                ratingStr,
+                ratings,
                 year: movie.year,
-                director: movie.director
+                director: movie.director,
+                genre: movie.genre || [],
             };
         });
 
         // Liste des participants
         const participantsMention = userIds.map(id => `<@${id}>`).join(', ');
 
-        // Générer le texte final
-        let text = `🎯 Recommandations pour la watchparty\nVoici les 5 recommandations, classées par priorité de critère :\n`;
-        if (allParticipants.length) text += `🎯 Tous les participants\n`;
-        if (someParticipants.length) text += `⚡ Au moins un participant\n`;
-        if (noDesire.length) text += `📋 Non vus aléatoires\n`;
-        text += `\nVoir la légende pour chaque film ci-dessous.\n`;
+        // Générer le texte final avec intro, légende et catégories
+        let text = `Voici les 5 recommandations, classées par priorité de critère :\n`;
+        text += `__Légende__\n`;
+        text += `🎯 Tous les participants\n`;
+        text += `⚡ Au moins un participant\n`;
+        text += `📋 Non vus aléatoires\n`;
+
         for (const entry of result) {
-            text += `\n${entry.idx}. ${entry.title}\n${entry.legend}`;
-            if (entry.ratingStr) text += `\n${entry.ratingStr}`;
-            if (entry.year) text += `\nAnnée : ${entry.year}`;
-            if (entry.director) text += `\nRéalisateur : ${entry.director}`;
+            const rank = entry.idx;
+            let medal = '';
+            if (rank === 1) medal = '🥇';
+            else if (rank === 2) medal = '🥈';
+            else if (rank === 3) medal = '🥉';
+            else medal = `**${rank}.**`;
+
+            // Calcul des étoiles et votes
+            let avg = 0, count = 0, stars = '';
+            if (entry.ratings && entry.ratings.length) {
+                avg = entry.ratings.reduce((a, b) => a + b.desire_rating, 0) / entry.ratings.length;
+                count = entry.ratings.length;
+                stars = EmbedUtils.getDesireStars(avg);
+            }
+            let ratingStr = count > 0 ? `${stars} ${avg.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''})` : '';
+
+            text += `\n${medal} **${entry.title}**`;
+            if (entry.year) text += ` (${entry.year})`;
+            text += `\n${entry.legend}`;
+            text += '\n';
+            if (ratingStr) text += `${ratingStr}\n`;
+            if (entry.genre && entry.genre.length > 0) {
+                text += `*${entry.genre.slice(0, 3).join(', ')}*\n`;
+            }
+            text += '\n';
         }
+
+        // Ajouter la liste des participants pris en compte à la fin
+        text += `\n👥 Participants pris en compte : `;
+        text += participantsMention || 'Aucun';
 
         return { text, result };
     },

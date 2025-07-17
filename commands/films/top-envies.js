@@ -15,17 +15,35 @@ module.exports = {
 
     async execute(interaction) {
         const limit = interaction.options.getInteger('limite') || 10;
-
         try {
+            // Récupérer tous les films non vus
+            const unwatchedMovies = await databaseManager.getUnwatchedMovies(0, 1000);
+            // Pour chaque film, récupérer les notes d'envie
+            const moviesWithDesire = [];
+            for (const movie of unwatchedMovies) {
+                const ratings = await databaseManager.getMovieDesireRatings(movie.id);
+                if (!ratings || ratings.length === 0) continue;
+                const count = ratings.length;
+                const average = ratings.reduce((sum, r) => sum + r.desire_rating, 0) / count;
+                moviesWithDesire.push({
+                    ...movie,
+                    desireRating: {
+                        average,
+                        count
+                    },
+                    ratings // pour affichage des votants
+                });
+            }
 
-            const mostDesired = await databaseManager.getMostDesiredMovies(limit);
-            // Tri : d'abord par moyenne décroissante, puis par nombre de votes décroissant
-            mostDesired.sort((a, b) => {
-                if (b.desireRating.average !== a.desireRating.average) {
-                    return b.desireRating.average - a.desireRating.average;
-                }
-                return b.desireRating.count - a.desireRating.count;
+            // Tri : d'abord par nombre de votes décroissant, puis par moyenne décroissante
+            moviesWithDesire.sort((a, b) => {
+                const countDiff = b.desireRating.count - a.desireRating.count;
+                if (countDiff !== 0) return countDiff;
+                return b.desireRating.average - a.desireRating.average;
             });
+
+            // Limiter le nombre de films affichés
+            const mostDesired = moviesWithDesire.slice(0, limit);
 
             if (mostDesired.length === 0) {
                 return await interaction.reply({
@@ -47,13 +65,18 @@ module.exports = {
             mostDesired.forEach((movie, index) => {
                 const rank = index + 1;
                 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**${rank}.**`;
-                // Affichage centralisé via embedUtils
                 const avg = movie.desireRating.average;
+                const count = movie.desireRating.count;
                 const stars = EmbedUtils.getDesireStars(avg);
-                const statusIcon = movie.watched ? '✅' : '⏳';
-
+                let ratingStr = `${stars} ${avg.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''})`;
                 description += `${medal} **${movie.title}** ${movie.year ? `(${movie.year})` : ''}\n`;
-                description += `${statusIcon} ${stars} ${avg.toFixed(1)}/5 (${movie.desireRating.count} vote${movie.desireRating.count > 1 ? 's' : ''})\n`;
+                description += `${ratingStr}\n`;
+
+                // afficher les votants
+                if (movie.ratings && movie.ratings.length > 0) {
+                    const voters = movie.ratings.map(r => `<@${r.user_id}>`).join(', ');
+                    description += `👤 Votants : ${voters}\n`;
+                }
 
                 if (movie.genre && movie.genre.length > 0) {
                     description += `*${movie.genre.slice(0, 3).join(', ')}*\n`;
@@ -66,7 +89,6 @@ module.exports = {
             // Ajouter des statistiques
             const totalDesires = mostDesired.reduce((sum, movie) => sum + movie.desireRating.count, 0);
             const averageDesire = (mostDesired.reduce((sum, movie) => sum + movie.desireRating.average, 0) / mostDesired.length).toFixed(1);
-            
             embed.addFields(
                 { name: 'Total des votes', value: totalDesires.toString(), inline: true },
                 { name: 'Envie moyenne', value: `${averageDesire}/5`, inline: true },
@@ -76,7 +98,6 @@ module.exports = {
             await interaction.reply({
                 embeds: [embed],
             });
-
         } catch (error) {
             console.error('Erreur lors de la récupération des films les plus désirés:', error);
             await interaction.reply({

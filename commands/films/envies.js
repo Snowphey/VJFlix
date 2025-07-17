@@ -2,23 +2,32 @@ const { MessageFlags, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, Butto
 const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
+
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('mes-envies')
-        .setDescription('Afficher vos notes d\'envie de regarder'),
+        .setName('envies')
+        .setDescription('Afficher les notes d\'envie de regarder d\'un utilisateur (par défaut vous)')
+        .addUserOption(option =>
+            option.setName('utilisateur')
+                .setDescription('L\'utilisateur dont afficher les envies')
+                .setRequired(false)
+        ),
+
 
     async execute(interaction) {
-        const userId = interaction.user.id;
+        const user = interaction.options.getUser('utilisateur') || interaction.user;
+        const userId = user.id;
 
         try {
             const userDesires = await databaseManager.getUserDesireRatings(userId);
+
 
             if (userDesires.length === 0) {
                 return await interaction.reply({
                     embeds: [new EmbedBuilder()
                         .setColor('#9932CC')
-                        .setTitle('💜 Vos envies de regarder')
-                        .setDescription('Vous n\'avez encore noté aucune envie de regarder.')
+                        .setTitle(`💜 ${user.id === interaction.user.id ? 'Vos' : `Les envies de ${user.username}`} envies de regarder`)
+                        .setDescription(`${user.id === interaction.user.id ? "Vous n'avez encore noté aucune envie de regarder." : `${user.username} n'a encore noté aucune envie de regarder.`}`)
                         .setTimestamp()],
                     flags: MessageFlags.Ephemeral
                 });
@@ -27,10 +36,11 @@ module.exports = {
             // Trier par note d'envie décroissante
             userDesires.sort((a, b) => b.desireRating - a.desireRating);
 
+
             const embed = new EmbedBuilder()
                 .setColor('#9932CC')
-                .setTitle('💜 Vos envies de regarder')
-                .setDescription(`Vous avez noté ${userDesires.length} film${userDesires.length > 1 ? 's' : ''} pour l'envie de regarder`)
+                .setTitle(`💜 ${user.id === interaction.user.id ? 'Vos' : `Les envies de ${user.username}`} envies de regarder`)
+                .setDescription(`${user.id === interaction.user.id ? `Vous avez noté ${userDesires.length} film${userDesires.length > 1 ? 's' : ''} pour l'envie de regarder` : `${user.username} a noté ${userDesires.length} film${userDesires.length > 1 ? 's' : ''} pour l'envie de regarder`}`)
                 .setTimestamp();
 
             let description = '';

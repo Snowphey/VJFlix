@@ -509,27 +509,6 @@ class DatabaseManager {
         };
     }
 
-    async getMostDesiredMovies(limit = 10) {
-        const movies = await this.all(`
-            SELECT m.*, AVG(wd.desire_rating) as avg_desire_rating, COUNT(wd.desire_rating) as desire_count
-            FROM movies m
-            JOIN watch_desires wd ON m.id = wd.movie_id
-            WHERE m.watched = FALSE
-            GROUP BY m.id
-            HAVING desire_count >= 1
-            ORDER BY avg_desire_rating DESC, desire_count DESC
-            LIMIT ?
-        `, [limit]);
-
-        return movies.map(movie => ({
-            ...this.formatMovie(movie),
-            desireRating: {
-                average: Math.round(movie.avg_desire_rating * 10) / 10,
-                count: movie.desire_count
-            }
-        }));
-    }
-
     async getUserDesireRatings(userId) {
         const ratings = await this.all(`
             SELECT wd.*, m.*
