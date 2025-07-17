@@ -1,5 +1,6 @@
 const { MessageFlags, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
+const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -16,7 +17,15 @@ module.exports = {
         const limit = interaction.options.getInteger('limite') || 10;
 
         try {
+
             const mostDesired = await dataManager.getMostDesiredMovies(limit);
+            // Tri : d'abord par moyenne décroissante, puis par nombre de votes décroissant
+            mostDesired.sort((a, b) => {
+                if (b.desireRating.average !== a.desireRating.average) {
+                    return b.desireRating.average - a.desireRating.average;
+                }
+                return b.desireRating.count - a.desireRating.count;
+            });
 
             if (mostDesired.length === 0) {
                 return await interaction.reply({
@@ -38,15 +47,14 @@ module.exports = {
             mostDesired.forEach((movie, index) => {
                 const rank = index + 1;
                 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**${rank}.**`;
-                const stars = movie.desireRating.average === 0 ? '🤍🤍🤍🤍🤍' : '💜'.repeat(Math.floor(movie.desireRating.average)) + 
-                            (movie.desireRating.average % 1 >= 0.5 ? '💜' : '') +
-                            '🤍'.repeat(Math.max(0, 5 - Math.ceil(movie.desireRating.average)));
-                
+                // Affichage centralisé via embedUtils
+                const avg = movie.desireRating.average;
+                const stars = EmbedUtils.getDesireStars(avg);
                 const statusIcon = movie.watched ? '✅' : '⏳';
-                
+
                 description += `${medal} **${movie.title}** ${movie.year ? `(${movie.year})` : ''}\n`;
-                description += `${statusIcon} ${stars} ${movie.desireRating.average.toFixed(1)}/5 (${movie.desireRating.count} vote${movie.desireRating.count > 1 ? 's' : ''})\n`;
-                
+                description += `${statusIcon} ${stars} ${avg.toFixed(1)}/5 (${movie.desireRating.count} vote${movie.desireRating.count > 1 ? 's' : ''})\n`;
+
                 if (movie.genre && movie.genre.length > 0) {
                     description += `*${movie.genre.slice(0, 3).join(', ')}*\n`;
                 }

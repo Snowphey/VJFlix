@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
+const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -83,7 +84,8 @@ module.exports = {
         }
 
         if (userDesireRating) {
-            const userStars = userDesireRating.desire_rating === 0 ? '🤍🤍🤍🤍🤍' : '💜'.repeat(userDesireRating.desire_rating) + '🤍'.repeat(5 - userDesireRating.desire_rating);
+            // Affichage utilisateur : pas de demi-étoile, car note entière
+            const userStars = EmbedUtils.getDesireStars(userDesireRating.desire_rating);
             embed.addFields({ name: 'Votre envie actuelle', value: `${userDesireRating.desire_rating}/5 ${userStars}`, inline: false });
             embed.setDescription(`**${movie.title}**\n\n*Vous avez déjà noté votre envie pour ce film. Vous pouvez modifier votre note.*`);
         } else {
@@ -91,10 +93,8 @@ module.exports = {
         }
 
         if (averageDesireRating) {
-            const avgStars = averageDesireRating.average === 0 ? '🤍🤍🤍🤍🤍' : '💜'.repeat(Math.floor(averageDesireRating.average)) + 
-                           (averageDesireRating.average % 1 >= 0.5 ? '💜' : '') +
-                           '🤍'.repeat(Math.max(0, 5 - Math.ceil(averageDesireRating.average)));
-            
+            // Affichage centralisé via embedUtils
+            const avgStars = EmbedUtils.getDesireStars(averageDesireRating.average);
             embed.addFields(
                 { name: 'Envie moyenne', value: `${averageDesireRating.average.toFixed(1)}/5 ${avgStars}`, inline: true },
                 { name: 'Votes', value: averageDesireRating.count.toString(), inline: true }
@@ -204,7 +204,8 @@ module.exports = {
 
         // Obtenir les nouvelles statistiques
         const averageDesire = await dataManager.getAverageDesireRating(parseInt(movieDbId));
-        const starsDisplay = ratingValue === 0 ? '🤍🤍🤍🤍🤍' : '💜'.repeat(ratingValue) + '🤍'.repeat(5 - ratingValue);
+        // Affichage utilisateur : pas de demi-étoile, car note entière
+        const starsDisplay = EmbedUtils.getDesireStars(ratingValue);
 
         const embed = new EmbedBuilder()
             .setColor('#9932CC')
@@ -225,10 +226,8 @@ module.exports = {
         embed.addFields({ name: 'Statut', value: `${statusIcon} ${statusText}`, inline: true });
 
         if (averageDesire) {
-            const avgStars = averageDesire.average === 0 ? '🤍🤍🤍🤍🤍' : '💜'.repeat(Math.floor(averageDesire.average)) + 
-                           (averageDesire.average % 1 >= 0.5 ? '💜' : '') +
-                           '🤍'.repeat(Math.max(0, 5 - Math.ceil(averageDesire.average)));
-            
+            // Affichage centralisé via embedUtils
+            const avgStars = EmbedUtils.getDesireStars(averageDesire.average);
             embed.addFields(
                 { name: 'Envie moyenne', value: `${averageDesire.average.toFixed(1)}/5 ${avgStars}`, inline: true },
                 { name: 'Nombre de votes', value: averageDesire.count.toString(), inline: true }

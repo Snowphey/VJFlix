@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
 const { handleButtonsDesireRating, buttonsDesireRating, desireRate } = require('./noter-envie');
+const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -64,28 +65,11 @@ module.exports = {
     },
 
     async displayMovieDetails(interaction, movie) {
-        // Afficher la note d'envie de l'utilisateur si elle existe
-        let userDesire = null;
-        if (interaction.user) {
-            userDesire = await dataManager.getUserDesireRating(movie.id, interaction.user.id);
-        }
-
-        if (userDesire) {
-            const userHearts = '💜'.repeat(userDesire.desire_rating) + '🤍'.repeat(5 - userDesire.desire_rating);
-            embed.addFields({
-                name: 'Votre envie',
-                value: `${userDesire.desire_rating}/5 ${userHearts}`,
-                inline: true
-            });
-        }
+        // Construire l'embed avec les détails du film
         const embed = new EmbedBuilder()
-            .setColor('#00ff00')
-            .setTitle(movie.title)
-            .addFields(
-                { name: 'ID en base', value: movie.id.toString(), inline: true },
-                { name: 'Année', value: movie.year?.toString() || 'N/A', inline: true },
-                { name: 'Type', value: movie.type || 'movie', inline: true }
-            );
+            .setColor('#0099ff')
+            .setTitle(`🎬 ${movie.title}`)
+            .setTimestamp();
 
         if (movie.director) {
             embed.addFields({ name: 'Réalisateur', value: movie.director, inline: true });
@@ -102,18 +86,32 @@ module.exports = {
         if (movie.actors && movie.actors.length > 0) {
             embed.addFields({ name: 'Acteurs principaux', value: movie.actors.slice(0, 3).join(', '), inline: false });
         }
+            
+        // Afficher la note d'envie de l'utilisateur si elle existe
+        let userDesire = null;
+
+        if (interaction.user) {
+            userDesire = await dataManager.getUserDesireRating(movie.id, interaction.user.id);
+        }
+
+        if (userDesire) {
+            const userHearts = EmbedUtils.getDesireStars(userDesire.desire_rating);
+            embed.addFields({
+                name: 'Votre envie',
+                value: `${userDesire.desire_rating}/5 ${userHearts}`,
+                inline: true
+            });
+        }
 
         // Notation d'envie uniquement
         const desireRating = await dataManager.getAverageDesireRating(movie.id);
         if (desireRating) {
-            const ratingText = desireRating 
-            ? `💜 ${desireRating.average}/5 (${desireRating.count} envie${desireRating.count > 1 ? 's' : ''})`
-            : 'Pas encore noté';
-
+            const avgStars = EmbedUtils.getDesireStars(desireRating.average);
+            const ratingText = `${desireRating.average.toFixed(1)}/5 ${avgStars} (${desireRating.count} envie${desireRating.count > 1 ? 's' : ''})`;
             embed.addFields(
                 { name: 'Envie moyenne', value: ratingText, inline: true },
                 { name: 'Nombre de votes', value: desireRating.count.toString(), inline: true }
-            )
+            );
         }
         
 
@@ -195,113 +193,5 @@ module.exports = {
         }
 
         await this.displayMovieDetails(interaction, movie);
-    },
-
-    async displayMovieDetails(interaction, movie) {
-        // Construire l'embed avec les détails du film
-        const embed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle(`🎬 ${movie.title}`)
-            .setTimestamp();
-
-        // Ajouter les informations de base
-        if (movie.year) embed.addFields({ name: 'Année', value: movie.year.toString(), inline: true });
-        if (movie.director) embed.addFields({ name: 'Réalisateur', value: movie.director, inline: true });
-        
-        // Afficher l'ID du film
-        embed.addFields({ name: 'ID', value: movie.id.toString(), inline: true });
-
-        // Genres
-        if (movie.genre && movie.genre.length > 0) {
-            embed.addFields({ name: 'Genres', value: movie.genre.join(', '), inline: false });
-        }
-
-        // Envie moyenne
-        const averageDesire = await dataManager.getAverageDesireRating(movie.id);
-        if (averageDesire) {
-            const hearts = '💜'.repeat(Math.floor(averageDesire.average)) + '🤍'.repeat(5 - Math.floor(averageDesire.average));
-            embed.addFields({ 
-                name: 'Envie moyenne', 
-                value: `${averageDesire.average.toFixed(1)}/5 ${hearts} (${averageDesire.count} vote${averageDesire.count > 1 ? 's' : ''})`, 
-                inline: false 
-            });
-        }
-
-        // Synopsis
-        if (movie.plot && movie.plot !== 'N/A') {
-            const plot = movie.plot.length > 1000 ? movie.plot.substring(0, 997) + '...' : movie.plot;
-            embed.addFields({ name: 'Synopsis', value: plot, inline: false });
-        }
-
-        // Poster
-        if (movie.poster && movie.poster !== 'N/A') {
-            embed.setThumbnail(movie.poster);
-        }
-
-        // Statut vu/non vu
-        const statusIcon = movie.watched ? '✅' : '⏳';
-        const statusText = movie.watched ? 'Déjà vu' : 'Non vu';
-        embed.addFields({ name: 'Statut', value: `${statusIcon} ${statusText}`, inline: true });
-
-        // Date d'ajout
-        if (movie.addedAt) {
-            embed.addFields({ 
-                name: 'Ajouté le', 
-                value: new Date(movie.addedAt).toLocaleDateString('fr-FR'), 
-                inline: true 
-            });
-        }
-
-        // Boutons d'action
-        const row = new ActionRowBuilder();
-
-        // Bouton marquer vu/non vu
-        if (movie.watched) {
-            row.addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`mark_unwatched_${movie.id}`)
-                    .setLabel('Marquer non vu')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('🔄')
-            );
-        } else {
-            row.addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`mark_watched_${movie.id}`)
-                    .setLabel('Marquer vu')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅')
-            );
-        }
-
-        // Bouton noter l'envie
-        row.addComponents(
-            new ButtonBuilder()
-                .setCustomId(`desire_quick_${movie.id}`)
-                .setLabel('Noter l\'envie')
-                .setStyle(ButtonStyle.Primary)
-                .setEmoji('💜')
-        );
-
-        // Bouton pour supprimer de la watchlist
-        row.addComponents(
-            new ButtonBuilder()
-                .setCustomId(`remove_from_watchlist_${movie.id}`)
-                .setLabel('Supprimer')
-                .setStyle(ButtonStyle.Danger)
-                .setEmoji('🗑️')
-        );
-
-        if (interaction.replied || interaction.deferred) {
-            await interaction.editReply({
-                embeds: [embed],
-                components: [row]
-            });
-        } else {
-            await interaction.reply({
-                embeds: [embed],
-                components: [row]
-            });
-        }
     },
 };

@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
+const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -57,10 +58,8 @@ module.exports = {
                 const desireRating = await dataManager.getAverageDesireRating(movie.id);
                 let ratingText;
                 if (desireRating && desireRating.count > 0) {
-                    const avg = desireRating.average;
-                    const fullHearts = '💜'.repeat(Math.floor(avg));
-                    const emptyHearts = '🤍'.repeat(5 - Math.floor(avg));
-                    ratingText = `${avg}/5 ${fullHearts}${emptyHearts} (${desireRating.count} envie${desireRating.count > 1 ? 's' : ''})`;
+                    const avgStars = EmbedUtils.getDesireStars(desireRating.average);
+                    ratingText = `${desireRating.average.toFixed(1)}/5 ${avgStars} (${desireRating.count} envie${desireRating.count > 1 ? 's' : ''})`;
                 } else {
                     ratingText = 'Pas encore noté';
                 }

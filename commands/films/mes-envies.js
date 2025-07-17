@@ -1,5 +1,6 @@
 const { MessageFlags, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
+const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -37,12 +38,13 @@ module.exports = {
 
             userDesires.slice(0, displayLimit).forEach((item, index) => {
                 const movie = item.movie;
-                const stars = '💜'.repeat(item.desireRating) + '🤍'.repeat(5 - item.desireRating);
+                // Affichage centralisé via embedUtils
+                const stars = EmbedUtils.getDesireStars(item.desireRating);
                 const statusIcon = movie.watched ? '✅' : '⏳';
-                
+
                 description += `${statusIcon} **${movie.title}** ${movie.year ? `(${movie.year})` : ''}\n`;
                 description += `${stars} ${item.desireRating}/5\n`;
-                
+
                 if (movie.genre && movie.genre.length > 0) {
                     description += `*${movie.genre.slice(0, 2).join(', ')}*\n`;
                 }

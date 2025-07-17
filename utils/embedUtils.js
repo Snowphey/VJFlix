@@ -291,6 +291,28 @@ class EmbedUtils {
 
         return embed;
     }
+
+
+        /**
+     * Retourne une chaîne d'emojis représentant la note d'envie (💜, 🟣, ⚪, 🤍)
+     * @param {number} rating Note sur 5 (peut être décimale)
+     * @returns {string} Chaîne d'emojis
+     */
+    static getDesireStars(rating) {
+        if (!rating || rating <= 0) return '🤍🤍🤍🤍🤍';
+        let fullStars = Math.floor(rating);
+        const decimal = rating - fullStars;
+        let halfStar = 0;
+        let whiteCircle = 0;
+        if (decimal >= 0.5) {
+            halfStar = 1;
+        } else if (decimal > 0) {
+            whiteCircle = 1;
+        }
+        const emptyStars = 5 - fullStars - halfStar - whiteCircle;
+        return '💜'.repeat(fullStars) + (halfStar ? '🟣' : '') + (whiteCircle ? '⚪' : '') + '🤍'.repeat(emptyStars);
+    }
+
 }
 
 module.exports = EmbedUtils;
