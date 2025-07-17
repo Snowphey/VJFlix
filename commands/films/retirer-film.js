@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -18,7 +18,7 @@ module.exports = {
         try {
             if (!focusedValue) {
                 // Récupérer les films récents de la base de données
-                const movies = await dataManager.getMoviesPaginated(0, 25);
+            const movies = await databaseManager.getMoviesPaginated(0, 25);
                 const choices = movies.map(movie => ({
                     name: `${movie.title} (${movie.year || 'N/A'})`,
                     value: movie.id.toString()
@@ -29,7 +29,7 @@ module.exports = {
             }
             
             // Rechercher les films correspondants dans la base de données
-            const movies = await dataManager.searchMovies(focusedValue);
+            const movies = await databaseManager.searchMovies(focusedValue);
             const choices = movies.slice(0, 25).map(movie => ({
                 name: `${movie.title} (${movie.year || 'N/A'})`,
                 value: movie.id.toString()
@@ -49,7 +49,7 @@ module.exports = {
 
         try {
             // Récupérer les informations du film avant suppression
-            const movie = await dataManager.getMovieById(id);
+            const movie = await databaseManager.getMovieById(id);
             
             if (!movie) {
                 return await interaction.editReply({
@@ -138,7 +138,7 @@ module.exports = {
 
     async handleConfirmRemove(interaction, movieId) {
         // Supprimer le film de la base de données
-        const result = await dataManager.removeMovie(movieId);
+        const result = await databaseManager.removeMovie(movieId);
         
         if (!result.success) {
             return await interaction.update({
@@ -180,7 +180,7 @@ module.exports = {
         const movieId = parseInt(interaction.customId.split('_')[3]);
         
         // Récupérer les informations du film avant suppression
-        const movie = await dataManager.getMovieById(movieId);
+        const movie = await databaseManager.getMovieById(movieId);
         if (!movie) {
             return await interaction.reply({
                 embeds: [new EmbedBuilder()

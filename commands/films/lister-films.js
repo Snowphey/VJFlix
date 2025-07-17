@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
@@ -18,7 +18,7 @@ module.exports = {
 
         try {
             // Récupérer le nombre total de films
-            const totalCount = await dataManager.getTotalMovieCount();
+            const totalCount = await databaseManager.getTotalMovieCount();
             
             if (totalCount === 0) {
                 return await interaction.reply({
@@ -45,7 +45,7 @@ module.exports = {
             }
 
             // Récupérer les films pour cette page
-            const movies = await dataManager.getMoviesPaginated(offset, itemsPerPage);
+            const movies = await databaseManager.getMoviesPaginated(offset, itemsPerPage);
 
             const embed = new EmbedBuilder()
                 .setColor('#0099ff')
@@ -55,7 +55,7 @@ module.exports = {
 
             // Ajouter chaque film à l'embed
             for (const movie of movies) {
-                const desireRating = await dataManager.getAverageDesireRating(movie.id);
+                const desireRating = await databaseManager.getAverageDesireRating(movie.id);
                 let ratingText;
                 if (desireRating && desireRating.count > 0) {
                     const avgStars = EmbedUtils.getDesireStars(desireRating.average);
@@ -123,11 +123,11 @@ module.exports = {
         const offset = (page - 1) * itemsPerPage;
 
         // Récupérer le nombre total de films
-        const totalCount = await dataManager.getTotalMovieCount();
+        const totalCount = await databaseManager.getTotalMovieCount();
         const totalPages = Math.ceil(totalCount / itemsPerPage);
         
         // Récupérer les films pour cette page
-        const movies = await dataManager.getMoviesPaginated(offset, itemsPerPage);
+        const movies = await databaseManager.getMoviesPaginated(offset, itemsPerPage);
 
         const embed = new EmbedBuilder()
             .setColor('#0099ff')
@@ -137,7 +137,7 @@ module.exports = {
 
         // Ajouter chaque film à l'embed
         for (const movie of movies) {
-            const desireRating = await dataManager.getAverageDesireRating(movie.id);
+            const desireRating = await databaseManager.getAverageDesireRating(movie.id);
             let ratingText;
             if (desireRating && desireRating.count > 0) {
                 const avg = desireRating.average;

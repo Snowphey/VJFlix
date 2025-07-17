@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
@@ -7,8 +7,8 @@ module.exports = {
         .setName('afficher-liste')
         .setDescription('Affiche la liste des films à regarder et des films vus'),
     async execute(interaction) {
-        const unwatchedMovies = await dataManager.getUnwatchedMovies();
-        const watchedMovies = await dataManager.getWatchedMovies();
+        const unwatchedMovies = await databaseManager.getUnwatchedMovies();
+        const watchedMovies = await databaseManager.getWatchedMovies();
         
         const watchlistEmbed = EmbedUtils.createWatchlistEmbed(unwatchedMovies);
         const watchedlistEmbed = EmbedUtils.createWatchedListEmbed(watchedMovies);

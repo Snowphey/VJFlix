@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const { updateListInChannel } = require('../../utils/listUpdater');
 
 module.exports = {
@@ -33,8 +33,8 @@ module.exports = {
             return;
         }
 
-        await dataManager.setListChannelId(channel.id);
-        await dataManager.setListMessageId(null); // Reset pour créer un nouveau message
+        await databaseManager.setSetting('listChannelId', channel.id);
+        await databaseManager.setSetting('listMessageId', null); // Reset pour créer un nouveau message
 
         await interaction.reply({ 
             content: `✅ Canal de la liste défini sur ${channel} !`, 

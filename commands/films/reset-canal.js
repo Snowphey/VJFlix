@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const { deleteListMessage } = require('../../utils/listUpdater');
 
 module.exports = {
@@ -8,7 +8,7 @@ module.exports = {
         .setDescription('Supprime le message de la liste et remet à zéro la configuration du canal'),
     async execute(interaction) {
         try {
-            const settings = await dataManager.getSettings();
+            const settings = await databaseManager.getSettings();
             
             // Vérifier s'il y a un canal et un message configurés
             if (!settings.listChannelId) {
@@ -27,8 +27,8 @@ module.exports = {
             }
 
             // Remettre les IDs à null
-            await dataManager.setListChannelId(null);
-            await dataManager.setListMessageId(null);
+            await databaseManager.setSetting('listChannelId', null);
+            await databaseManager.setSetting('listMessageId', null);
 
             // Message de confirmation
             let confirmMessage = '✅ Configuration du canal remise à zéro !';

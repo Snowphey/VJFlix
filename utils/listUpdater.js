@@ -1,4 +1,4 @@
-const dataManager = require('./dataManager');
+const databaseManager = require('./databaseManager');
 const EmbedUtils = require('./embedUtils');
 
 /**
@@ -6,13 +6,13 @@ const EmbedUtils = require('./embedUtils');
  * @param {Client} client - Instance du client Discord
  */
 async function updateListInChannel(client) {
-    const settings = await dataManager.getSettings();
+    const settings = await databaseManager.getSettings();
     if (!settings.listChannelId) return;
 
     try {
         const channel = await client.channels.fetch(settings.listChannelId);
-        const watchlist = await dataManager.getUnwatchedMovies();
-        const watchedlist = await dataManager.getWatchedMovies();
+        const watchlist = await databaseManager.getUnwatchedMovies();
+        const watchedlist = await databaseManager.getWatchedMovies();
         
         const watchlistEmbed = EmbedUtils.createWatchlistEmbed(watchlist);
         const watchedlistEmbed = EmbedUtils.createWatchedListEmbed(watchedlist);
@@ -32,7 +32,7 @@ async function updateListInChannel(client) {
 
         // Créer un nouveau message
         const message = await channel.send({ embeds: embeds });
-        await dataManager.setListMessageId(message.id);
+        await databaseManager.setListMessageId(message.id);
     } catch (error) {
         console.error('Erreur lors de la mise à jour de la liste:', error);
     }
@@ -45,8 +45,8 @@ async function updateListInChannel(client) {
  */
 async function deleteListMessage(client) {
     try {
-        const channelId = await dataManager.getListChannelId();
-        const messageId = await dataManager.getListMessageId();
+        const channelId = await databaseManager.getListChannelId();
+        const messageId = await databaseManager.getListMessageId();
         
         if (!channelId || !messageId) {
             return false;

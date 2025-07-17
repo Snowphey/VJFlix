@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const tmdbService = require('../../utils/tmdbService');
 
 module.exports = {
@@ -306,7 +306,7 @@ module.exports = {
         }
 
         // Ajouter le film à la base de données
-        const result = await dataManager.addMovie(movieData, interaction.user);
+        const result = await databaseManager.addMovie(movieData, interaction.user);
         
         if (!result.success) {
             if (result.reason === 'exists') {

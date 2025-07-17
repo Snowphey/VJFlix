@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const { handleButtonsDesireRating, buttonsDesireRating, desireRate } = require('./noter-envie');
 const EmbedUtils = require('../../utils/embedUtils');
 
@@ -19,7 +19,7 @@ module.exports = {
         try {
             if (!focusedValue) {
                 // Récupérer les films récents de la base de données
-                const movies = await dataManager.getMoviesPaginated(0, 25);
+                const movies = await databaseManager.getMoviesPaginated(0, 25);
                 const choices = movies.map(movie => ({
                     name: `${movie.title} (${movie.year || 'N/A'})`,
                     value: movie.id.toString()
@@ -30,7 +30,7 @@ module.exports = {
             }
             
             // Rechercher les films correspondants dans la base de données
-            const movies = await dataManager.searchMovies(focusedValue);
+            const movies = await databaseManager.searchMovies(focusedValue);
             const choices = movies.slice(0, 25).map(movie => ({
                 name: `${movie.title} (${movie.year || 'N/A'})`,
                 value: movie.id.toString()
@@ -47,7 +47,7 @@ module.exports = {
         const movieId = parseInt(interaction.options.getString('film'));
         
         // Récupérer le film par son ID
-        const movie = await dataManager.getMovieById(movieId);
+        const movie = await databaseManager.getMovieById(movieId);
         
         if (!movie) {
             return await interaction.reply({
@@ -89,9 +89,8 @@ module.exports = {
             
         // Afficher la note d'envie de l'utilisateur si elle existe
         let userDesire = null;
-
         if (interaction.user) {
-            userDesire = await dataManager.getUserDesireRating(movie.id, interaction.user.id);
+            userDesire = await databaseManager.getUserDesireRating(movie.id, interaction.user.id);
         }
 
         if (userDesire) {
@@ -104,7 +103,7 @@ module.exports = {
         }
 
         // Notation d'envie uniquement
-        const desireRating = await dataManager.getAverageDesireRating(movie.id);
+        const desireRating = await databaseManager.getAverageDesireRating(movie.id);
         if (desireRating) {
             const avgStars = EmbedUtils.getDesireStars(desireRating.average);
             const ratingText = `${desireRating.average.toFixed(1)}/5 ${avgStars} (${desireRating.count} envie${desireRating.count > 1 ? 's' : ''})`;
@@ -179,7 +178,7 @@ module.exports = {
 
     async handleMovieDetails(interaction) {
         const movieId = parseInt(interaction.customId.split('_')[2]);
-        const movie = await dataManager.getMovieById(movieId);
+        const movie = await databaseManager.getMovieById(movieId);
         
         if (!movie) {
             return await interaction.reply({

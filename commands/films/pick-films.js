@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
 // Stockage temporaire des sondages actifs
@@ -96,7 +96,7 @@ module.exports = {
             }
         }
         
-        const watchlist = await dataManager.getUnwatchedMovies();
+        const watchlist = await databaseManager.getUnwatchedMovies();
         
         // Vérifier que les options 'nombre' et les films spécifiques ne sont pas utilisées ensemble
         if (count && specifiedMovies.length > 0) {
@@ -122,7 +122,7 @@ module.exports = {
             }
             
             // Récupérer les films par leurs IDs
-            selectedMovies = await dataManager.getMoviesByIds(specifiedMovies);
+            selectedMovies = await databaseManager.getMoviesByIds(specifiedMovies);
             
             // Vérifier que tous les IDs correspondent à des films existants
             if (selectedMovies.length !== specifiedMovies.length) {
@@ -154,7 +154,7 @@ module.exports = {
                 return;
             }
 
-            selectedMovies = await dataManager.getRandomMovies(finalCount);
+            selectedMovies = await databaseManager.getRandomMovies(finalCount);
         }
         
         // Vérifier s'il y a déjà un sondage actif dans ce canal
@@ -259,7 +259,7 @@ module.exports = {
         const focusedOption = interaction.options.getFocused(true);
         
         // Récupérer tous les films de la watchlist
-        const watchlist = await dataManager.getUnwatchedMovies();
+        const watchlist = await databaseManager.getUnwatchedMovies();
         
         // Récupérer les films déjà sélectionnés dans les autres options (pas celle en cours de saisie)
         const alreadySelected = [];

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags, EmbedBuilder } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const { updateListInChannel } = require('../../utils/listUpdater');
 
 module.exports = {
@@ -19,7 +19,7 @@ module.exports = {
         try {
             if (!focusedValue) {
                 // Si pas de recherche, afficher les premiers films non vus
-                const unwatchedMovies = await dataManager.getUnwatchedMovies(0, 25);
+                const unwatchedMovies = await databaseManager.getUnwatchedMovies(0, 25);
                 const choices = unwatchedMovies.map(movie => ({
                     name: `${movie.title} (${movie.year || 'N/A'})`,
                     value: movie.id.toString()
@@ -30,7 +30,7 @@ module.exports = {
             }
             
             // Rechercher parmi les films non vus
-            const unwatchedMovies = await dataManager.searchUnwatchedMovies(focusedValue);
+            const unwatchedMovies = await databaseManager.searchUnwatchedMovies(focusedValue);
             const choices = unwatchedMovies.slice(0, 25).map(movie => ({
                 name: `${movie.title} (${movie.year || 'N/A'})`,
                 value: movie.id.toString()
@@ -47,7 +47,7 @@ module.exports = {
         const movieId = parseInt(interaction.options.getString('film'));
         
         // Vérifier si le film existe dans la base de données
-        const movie = await dataManager.getMovieById(movieId);
+        const movie = await databaseManager.getMovieById(movieId);
         if (!movie) {
             await interaction.reply({ 
                 content: `Aucun film trouvé avec cet ID dans la base de données !`, 
@@ -57,7 +57,7 @@ module.exports = {
         }
         
         // Marquer le film comme vu en utilisant son ID de base de données
-        const watchedMovie = await dataManager.markAsWatched(movieId, interaction.user);
+        const watchedMovie = await databaseManager.markAsWatched(movieId, interaction.user);
         if (!watchedMovie) {
             await interaction.reply({ 
                 content: `Erreur lors du marquage du film comme vu !`, 
@@ -71,7 +71,7 @@ module.exports = {
         });
         
         // Mettre à jour la liste dans le canal défini
-        const settings = await dataManager.getSettings();
+        const settings = await databaseManager.getSettings();
         if (settings.listChannelId) {
             await updateListInChannel(interaction.client);
         }
@@ -83,7 +83,7 @@ module.exports = {
         const movieId = parseInt(interaction.customId.split('_')[2]);
         
         // Marquer le film comme vu
-        const result = await dataManager.markAsWatched(movieId, interaction.user);
+        const result = await databaseManager.markAsWatched(movieId, interaction.user);
         
         if (!result) {
             return await interaction.reply({

@@ -1,5 +1,5 @@
 const { MessageFlags, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
@@ -18,7 +18,7 @@ module.exports = {
 
         try {
 
-            const mostDesired = await dataManager.getMostDesiredMovies(limit);
+            const mostDesired = await databaseManager.getMostDesiredMovies(limit);
             // Tri : d'abord par moyenne décroissante, puis par nombre de votes décroissant
             mostDesired.sort((a, b) => {
                 if (b.desireRating.average !== a.desireRating.average) {

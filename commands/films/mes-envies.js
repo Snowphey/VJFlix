@@ -1,5 +1,5 @@
 const { MessageFlags, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
@@ -11,7 +11,7 @@ module.exports = {
         const userId = interaction.user.id;
 
         try {
-            const userDesires = await dataManager.getUserDesireRatings(userId);
+            const userDesires = await databaseManager.getUserDesireRatings(userId);
 
             if (userDesires.length === 0) {
                 return await interaction.reply({

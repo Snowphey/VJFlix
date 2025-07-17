@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
@@ -17,7 +17,7 @@ module.exports = {
         
         if (!focusedValue) {
             // Récupérer les films récents (priorité aux non vus pour l'envie)
-            const movies = await dataManager.getUnwatchedMovies(0, 25);
+            const movies = await databaseManager.getUnwatchedMovies(0, 25);
             const choices = movies.map(movie => ({
                 name: `${movie.title} (${movie.year || 'N/A'})`,
                 value: movie.id.toString()
@@ -28,7 +28,7 @@ module.exports = {
         }
         
         // Rechercher les films correspondants
-        const movies = await dataManager.searchMovies(focusedValue);
+        const movies = await databaseManager.searchMovies(focusedValue);
         const choices = movies.slice(0, 25).map(movie => ({
             name: `${movie.title} (${movie.year || 'N/A'})`,
             value: movie.id.toString()
@@ -46,7 +46,7 @@ module.exports = {
 
     async buttonsDesireRating(interaction, movieDbId, userId) {
         // Vérifier si le film existe
-        const movie = await dataManager.getMovieById(movieDbId);
+        const movie = await databaseManager.getMovieById(movieDbId);
         if (!movie) {
             return await interaction.reply({
                 embeds: [new EmbedBuilder()
@@ -59,8 +59,8 @@ module.exports = {
         }
 
         // Vérifier si l'utilisateur a déjà noté l'envie pour ce film
-        const userDesireRating = await dataManager.getUserDesireRating(movieDbId, userId);
-        const averageDesireRating = await dataManager.getAverageDesireRating(movieDbId);
+        const userDesireRating = await databaseManager.getUserDesireRating(movieDbId, userId);
+        const averageDesireRating = await databaseManager.getAverageDesireRating(movieDbId);
 
         const embed = new EmbedBuilder()
             .setColor('#9932CC')
@@ -176,7 +176,7 @@ module.exports = {
 
     async desireRate(interaction, movieDbId, userId, ratingValue) {
         // Vérifier si le film existe
-        const movie = await dataManager.getMovieById(parseInt(movieDbId));
+        const movie = await databaseManager.getMovieById(parseInt(movieDbId));
         if (!movie) {
             return await interaction.reply({
                 embeds: [new EmbedBuilder()
@@ -189,7 +189,7 @@ module.exports = {
         }
 
         // Noter l'envie de regarder le film
-        const result = await dataManager.rateMovieDesire(parseInt(movieDbId), userId, ratingValue);
+        const result = await databaseManager.rateMovieDesire(parseInt(movieDbId), userId, ratingValue);
         
         if (!result.success) {
             return await interaction.reply({
@@ -203,7 +203,7 @@ module.exports = {
         }
 
         // Obtenir les nouvelles statistiques
-        const averageDesire = await dataManager.getAverageDesireRating(parseInt(movieDbId));
+        const averageDesire = await databaseManager.getAverageDesireRating(parseInt(movieDbId));
         // Affichage utilisateur : pas de demi-étoile, car note entière
         const starsDisplay = EmbedUtils.getDesireStars(ratingValue);
 
@@ -251,7 +251,7 @@ module.exports = {
         const userId = interaction.user.id;
 
         // Vérifier si le film existe
-        const movie = await dataManager.getMovieById(movieId);
+        const movie = await databaseManager.getMovieById(movieId);
         if (!movie) {
             return await interaction.reply({
                 embeds: [new EmbedBuilder()
@@ -264,7 +264,7 @@ module.exports = {
         }
 
         // Supprimer la note d'envie
-        const result = await dataManager.removeUserDesireRating(movieId, userId);
+        const result = await databaseManager.removeUserDesireRating(movieId, userId);
         
         if (!result.success) {
             let errorMessage = 'Impossible de supprimer votre note d\'envie.';

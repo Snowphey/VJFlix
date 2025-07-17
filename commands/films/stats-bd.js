@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -11,15 +11,12 @@ module.exports = {
 
         try {
             // Récupérer les statistiques
-            const watchlist = await dataManager.getUnwatchedMovies();
-            const watchedMovies = await dataManager.getWatchedMovies();
-            const allMovies = await dataManager.getMovies();
-            // Top 3 des films selon l'envie
-            const topDesire = await dataManager.getMostDesiredMovies(3);
-
-            // Compter les notations d'envie
-            const desireRatingsCount = await dataManager.db.get('SELECT COUNT(*) as count FROM watch_desires');
-            const desireRatedMoviesCount = await dataManager.db.get('SELECT COUNT(DISTINCT movie_id) as count FROM watch_desires');
+            const watchlist = await databaseManager.getUnwatchedMovies();
+            const watchedMovies = await databaseManager.getWatchedMovies();
+            const allMovies = await databaseManager.getAllMovies();
+            const topDesire = await databaseManager.getMostDesiredMovies(3);
+            const desireRatingsCount = await databaseManager.db.get('SELECT COUNT(*) as count FROM watch_desires');
+            const desireRatedMoviesCount = await databaseManager.db.get('SELECT COUNT(DISTINCT movie_id) as count FROM watch_desires');
 
             const embed = new EmbedBuilder()
                 .setColor('#9932CC')
@@ -50,10 +47,8 @@ module.exports = {
             }
 
             // Statistiques par genre si disponible
-            const movies = await dataManager.db.all(`
-                SELECT genre 
-                FROM movies 
-                WHERE genre IS NOT NULL AND genre != '[]'
+            const movies = await databaseManager.db.all(`
+                SELECT genre FROM movies WHERE genre IS NOT NULL AND genre != '[]'
             `);
 
             if (movies.length > 0) {

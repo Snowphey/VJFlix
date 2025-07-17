@@ -1,5 +1,5 @@
 const { MessageFlags, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder, ComponentType } = require('discord.js');
-const dataManager = require('../../utils/dataManager');
+const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
@@ -14,7 +14,7 @@ module.exports = {
     async execute(interaction) {
         const date = interaction.options.getString('date');
         // Vérifier s'il existe déjà une watchparty ouverte dans ce salon
-        const openWatchparty = await dataManager.db.getOpenWatchpartyByChannel(interaction.channelId);
+        const openWatchparty = await databaseManager.getOpenWatchpartyByChannel(interaction.channelId);
         if (openWatchparty) {
             return await interaction.reply({
                 content: '❌ Il y a déjà une watchparty en cours dans ce salon. Merci de la finaliser ou supprimer avant d\'en créer une nouvelle.',
@@ -84,7 +84,7 @@ module.exports = {
         const fetchedMessage = response.resource.message;
 
         // Stocker la watchparty en base
-        await dataManager.db.createWatchparty({
+        await databaseManager.createWatchparty({
             messageId: fetchedMessage.id,
             channelId: interaction.channelId,
             date: date,
@@ -101,7 +101,7 @@ module.exports = {
         const messageId = interaction.message.id;
 
         // Récupérer la watchparty depuis la base
-        const watchpartyRow = await dataManager.db.getWatchpartyByMessageId(messageId);
+        const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
         if (!watchpartyRow) {
             return await interaction.reply({
                 content: 'Erreur : données de la watchparty introuvables.',
@@ -135,7 +135,7 @@ module.exports = {
         }
 
         // Mettre à jour la base
-        await dataManager.db.updateWatchpartyParticipants(messageId, participants, new Date().toISOString());
+        await databaseManager.updateWatchpartyParticipants(messageId, participants, new Date().toISOString());
 
         // Mettre à jour l'embed
         const embed = EmbedBuilder.from(interaction.message.embeds[0]);
@@ -160,7 +160,7 @@ module.exports = {
 
     async handleRecommendations(interaction) {
         const messageId = interaction.message.id;
-        const watchpartyRow = await dataManager.db.getWatchpartyByMessageId(messageId);
+        const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
         if (!watchpartyRow) {
             return await interaction.reply({
                 content: 'Erreur : données de la watchparty introuvables.',
@@ -241,7 +241,7 @@ module.exports = {
 
     async getMovieRecommendations(userIds) {
         // Récupérer tous les films non vus
-        const allUnwatched = await dataManager.db.getUnwatchedMovies(0, 200);
+        const allUnwatched = await databaseManager.getUnwatchedMovies(0, 200);
         // Récupérer toutes les envies pour ces films et ces users
         const movieIdSet = new Set(allUnwatched.map(m => m.id));
         // Map movieId -> { movie, ratings: [ { userId, desire_rating } ] }
@@ -251,7 +251,7 @@ module.exports = {
         }
         // Pour chaque user, récupérer ses envies
         for (const userId of userIds) {
-            const ratings = await dataManager.db.getUserDesireRatings(userId);
+            const ratings = await databaseManager.getUserDesireRatings(userId);
             for (const r of ratings) {
                 if (movieMap.has(r.movie.id)) {
                     movieMap.get(r.movie.id).ratings.push({ userId, desire_rating: r.desireRating });
@@ -355,7 +355,7 @@ module.exports = {
     async handleEndWatchparty(interaction) {
         const messageId = interaction.message.id;
         // Récupérer la watchparty depuis la base
-        const watchpartyRow = await dataManager.db.getWatchpartyByMessageId(messageId);
+        const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
         if (!watchpartyRow) {
             return await interaction.reply({
                 content: 'Erreur : données de la watchparty introuvables.',
@@ -369,7 +369,7 @@ module.exports = {
             });
         }
         // Fermer la watchparty en base
-        await dataManager.db.closeWatchparty(messageId, new Date().toISOString());
+        await databaseManager.closeWatchparty(messageId, new Date().toISOString());
 
         // Créer l'embed de fin
         const embed = EmbedBuilder.from(interaction.message.embeds[0]);
@@ -399,7 +399,7 @@ module.exports = {
     async handleDeleteWatchparty(interaction) {
         const messageId = interaction.message.id;
         // Récupérer la watchparty depuis la base
-        const watchpartyRow = await dataManager.db.getWatchpartyByMessageId(messageId);
+        const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
         if (!watchpartyRow) {
             return await interaction.reply({
                 content: 'Erreur : données de la watchparty introuvables.',
@@ -418,7 +418,7 @@ module.exports = {
             flags: MessageFlags.Ephemeral
         });
         // Supprimer la watchparty en base
-        await dataManager.db.deleteWatchparty(messageId);
+        await databaseManager.deleteWatchparty(messageId);
         // Supprimer le message Discord
         await interaction.message.delete();
     },
