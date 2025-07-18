@@ -35,46 +35,9 @@ module.exports = {
             .setFooter({ text: 'Cliquez sur les boutons pour indiquer votre disponibilité' })
             .setTimestamp();
 
-        // Créer les boutons de sondage
-        const pollRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('watchparty_available')
-                    .setLabel('Disponible')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅'),
-                new ButtonBuilder()
-                    .setCustomId('watchparty_unavailable')
-                    .setLabel('Indisponible')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌'),
-                new ButtonBuilder()
-                    .setCustomId('watchparty_maybe')
-                    .setLabel('Peut-être')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('❓')
-            );
 
-        // Créer les boutons d'action
-        const actionRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('watchparty_recommendations')
-                    .setLabel('Voir les recommandations')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🎯'),
-                new ButtonBuilder()
-                    .setCustomId('watchparty_end')
-                    .setLabel('Finaliser la watchparty')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🏁'),
-                new ButtonBuilder()
-                    .setCustomId('watchparty_delete')
-                    .setLabel('Supprimer la watchparty')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('🗑️')
-            );
-
+        const pollRow = this.getWatchpartyPollRow();
+        const actionRow = this.getWatchpartyActionRow(true);
         const response = await interaction.reply({
             embeds: [embed],
             components: [pollRow, actionRow],
@@ -82,6 +45,13 @@ module.exports = {
         });
 
         const fetchedMessage = response.resource.message;
+
+        // Épingler le message de la watchparty
+        try {
+            await fetchedMessage.pin();
+        } catch (err) {
+            console.error('Erreur lors de l\'épinglage du message de watchparty:', err);
+        }
 
         // Stocker la watchparty en base
         await databaseManager.createWatchparty({
@@ -375,10 +345,95 @@ module.exports = {
                 .setStyle(ButtonStyle.Secondary)
         );
         await interaction.reply({
-            content: 'Êtes-vous sûr de vouloir finaliser la watchparty ? Cette action est irréversible.',
+            content: 'Êtes-vous sûr de vouloir finaliser la watchparty ? Vous pourrez la rouvrir plus tard si besoin',
             components: [confirmRow],
             flags: MessageFlags.Ephemeral
         });
+    },
+
+    /**
+     * Handler pour rouvrir une watchparty
+     */
+    async handleReopenWatchparty(interaction) {
+        const messageId = interaction.message.id;
+        const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
+        if (!watchpartyRow) {
+            return await interaction.reply({
+                content: 'Erreur : données de la watchparty introuvables.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        if (watchpartyRow.organizer !== interaction.user.id) {
+            return await interaction.reply({
+                content: 'Seul l\'organisateur peut rouvrir la watchparty.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        if (watchpartyRow.isOpen) {
+            return await interaction.reply({
+                content: 'La watchparty est déjà ouverte.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        await databaseManager.reopenWatchparty(messageId, new Date().toISOString());
+        // Réactiver les bons boutons sur le message principal
+        const originalMsg = await interaction.channel.messages.fetch(messageId);
+        const enabledComponents = [
+            this.getWatchpartyPollRow(),
+            this.getWatchpartyActionRow(true)
+        ];
+        await originalMsg.edit({
+            embeds: originalMsg.embeds,
+            components: enabledComponents
+        });
+        // Répondre à l'interaction de confirmation sans toucher au message principal
+        await interaction.reply({
+            content: 'La watchparty a été rouverte.',
+            flags: MessageFlags.Ephemeral
+        });
+    },
+
+        // --- Utils pour les boutons ---
+    getWatchpartyPollRow() {
+        return new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('watchparty_available')
+                    .setLabel('Disponible')
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji('✅'),
+                new ButtonBuilder()
+                    .setCustomId('watchparty_unavailable')
+                    .setLabel('Indisponible')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('❌'),
+                new ButtonBuilder()
+                    .setCustomId('watchparty_maybe')
+                    .setLabel('Peut-être')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('❓')
+            );
+    },
+
+    getWatchpartyActionRow(isOpen = true) {
+        return new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('watchparty_recommendations')
+                    .setLabel('Voir les recommandations')
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('🎯'),
+                new ButtonBuilder()
+                    .setCustomId(isOpen ? 'watchparty_end' : 'watchparty_reopen')
+                    .setLabel(isOpen ? 'Finaliser la watchparty' : 'Rouvrir la watchparty')
+                    .setStyle(isOpen ? ButtonStyle.Primary : ButtonStyle.Success)
+                    .setEmoji(isOpen ? '🏁' : '🔄'),
+                new ButtonBuilder()
+                    .setCustomId('watchparty_delete')
+                    .setLabel('Supprimer la watchparty')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🗑️')
+            );
     },
 
     async handleDeleteWatchparty(interaction) {
@@ -426,26 +481,24 @@ module.exports = {
         }
         // Fermer la watchparty en base
         await databaseManager.closeWatchparty(messageId, new Date().toISOString());
-        // Créer l'embed de fin
-        const embed = EmbedBuilder.from(interaction.message.embeds[0] || interaction.message.embeds?.[0] || {});
-        embed.setColor('#00ff00')
-            .setTitle(`✅ Watchparty finalisée`)
-            .setFooter({ text: 'Watchparty terminée' });
-        // Désactiver tous les boutons
+        // Ne pas toucher à l'embed, seulement désactiver les bons boutons
         const originalMsg = await interaction.channel.messages.fetch(messageId);
         const disabledComponents = originalMsg.components.map(row => {
             const newRow = new ActionRowBuilder();
             row.components.forEach(component => {
                 if (component.type === ComponentType.Button) {
-                    newRow.addComponents(
-                        ButtonBuilder.from(component).setDisabled(true)
-                    );
+                    let btn = ButtonBuilder.from(component).setDisabled(true);
+                    // Remplacer le bouton Finaliser par Rouvrir si c'est l'organisateur
+                    if (btn.data.custom_id === 'watchparty_end' && watchpartyRow.organizer === interaction.user.id) {
+                        btn = btn.setCustomId('watchparty_reopen').setLabel('Rouvrir la watchparty').setStyle(ButtonStyle.Success).setEmoji('🔄').setDisabled(false);
+                    }
+                    newRow.addComponents(btn);
                 }
             });
             return newRow;
         });
         await originalMsg.edit({
-            embeds: [embed],
+            embeds: originalMsg.embeds,
             components: disabledComponents
         });
         await interaction.update({

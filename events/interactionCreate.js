@@ -303,6 +303,8 @@ module.exports = {
                         await watchpartyCommand.handleConfirmDelete(interaction);
                     } else if (interaction.customId === 'watchparty_cancel') {
                         await watchpartyCommand.handleCancel(interaction);
+                    } else if (interaction.customId === 'watchparty_reopen') {
+                        await watchpartyCommand.handleReopenWatchparty(interaction);
                     }
                 } catch (error) {
                     console.error('Erreur lors de l\'interaction watchparty:', error);

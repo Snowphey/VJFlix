@@ -564,6 +564,13 @@ class DatabaseManager {
         );
     }
 
+    async reopenWatchparty(messageId, updatedAt) {
+        return await this.run(
+            `UPDATE watchparties SET isOpen = 1, updatedAt = ? WHERE messageId = ?`,
+            [updatedAt, messageId]
+        );
+    }
+
     async deleteWatchparty(messageId) {
         return await this.run(
             `DELETE FROM watchparties WHERE messageId = ?`,
