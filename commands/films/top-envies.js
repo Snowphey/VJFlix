@@ -5,16 +5,9 @@ const EmbedUtils = require('../../utils/embedUtils');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('top-envies')
-        .setDescription('Afficher les films les plus désirés')
-        .addIntegerOption(option =>
-            option.setName('limite')
-                .setDescription('Nombre de films à afficher (max 25)')
-                .setMinValue(1)
-                .setMaxValue(25)
-                .setRequired(false)),
+        .setDescription('Afficher les films les plus désirés'),
 
     async execute(interaction) {
-        const limit = interaction.options.getInteger('limite') || 10;
         try {
             // Récupérer tous les films non vus
             const unwatchedMovies = await databaseManager.getUnwatchedMovies(0, 1000);
@@ -42,10 +35,7 @@ module.exports = {
                 return b.desireRating.average - a.desireRating.average;
             });
 
-            // Limiter le nombre de films affichés
-            const mostDesired = moviesWithDesire.slice(0, limit);
-
-            if (mostDesired.length === 0) {
+            if (moviesWithDesire.length === 0) {
                 return await interaction.reply({
                     embeds: [new EmbedBuilder()
                         .setColor('#9932CC')
@@ -55,48 +45,100 @@ module.exports = {
                 });
             }
 
-            const embed = new EmbedBuilder()
-                .setColor('#9932CC')
-                .setTitle('💜 Films les plus désirés')
-                .setDescription(`Top ${mostDesired.length} des films avec les meilleures notes d'envie`)
-                .setTimestamp();
+            // Pagination
+            const pageSize = 10;
+            const totalPages = Math.ceil(moviesWithDesire.length / pageSize);
+            let currentPage = 0;
 
-            let description = '';
-            mostDesired.forEach((movie, index) => {
-                const rank = index + 1;
-                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**${rank}.**`;
-                const avg = movie.desireRating.average;
-                const count = movie.desireRating.count;
-                const stars = EmbedUtils.getDesireStars(avg);
-                let ratingStr = `${stars} ${avg.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''})`;
-                description += `${medal} **${movie.title}** ${movie.year ? `(${movie.year})` : ''}\n`;
-                description += `${ratingStr}\n`;
+            // Fonction pour générer l'embed d'une page
+            function generateEmbed(page) {
+                const start = page * pageSize;
+                const end = start + pageSize;
+                const mostDesired = moviesWithDesire.slice(start, end);
+                const embed = new EmbedBuilder()
+                    .setColor('#9932CC')
+                    .setTitle('💜 Films les plus désirés')
+                    .setDescription(`Page ${page + 1}/${totalPages} — Top ${moviesWithDesire.length} films avec les meilleures notes d'envie`)
+                    .setTimestamp();
 
-                // afficher les votants
-                if (movie.ratings && movie.ratings.length > 0) {
-                    const voters = movie.ratings.map(r => `<@${r.user_id}>`).join(', ');
-                    description += `👤 Votants : ${voters}\n`;
-                }
+                let description = '';
+                mostDesired.forEach((movie, index) => {
+                    const rank = start + index + 1;
+                    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**${rank}.**`;
+                    const avg = movie.desireRating.average;
+                    const count = movie.desireRating.count;
+                    const stars = EmbedUtils.getDesireStars(avg);
+                    let ratingStr = `${stars} ${avg.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''})`;
+                    description += `${medal} **${movie.title}** ${movie.year ? `(${movie.year})` : ''}\n`;
+                    description += `${ratingStr}\n`;
+                    if (movie.ratings && movie.ratings.length > 0) {
+                        const voters = movie.ratings.map(r => `<@${r.user_id}>`).join(', ');
+                        description += `👤 Votants : ${voters}\n`;
+                    }
+                    if (movie.genre && movie.genre.length > 0) {
+                        description += `*${movie.genre.slice(0, 3).join(', ')}*\n`;
+                    }
+                    description += '\n';
+                });
+                embed.setDescription(description);
 
-                if (movie.genre && movie.genre.length > 0) {
-                    description += `*${movie.genre.slice(0, 3).join(', ')}*\n`;
-                }
-                description += '\n';
+                // Statistiques de la page
+                const totalDesires = mostDesired.reduce((sum, movie) => sum + movie.desireRating.count, 0);
+                const averageDesire = (mostDesired.reduce((sum, movie) => sum + movie.desireRating.average, 0) / (mostDesired.length || 1)).toFixed(1);
+                embed.addFields(
+                    { name: 'Total des votes (page)', value: totalDesires.toString(), inline: true },
+                    { name: 'Envie moyenne (page)', value: `${averageDesire}/5`, inline: true },
+                    { name: 'Films classés (page)', value: mostDesired.length.toString(), inline: true }
+                );
+                return embed;
+            }
+
+            // Créer les boutons
+            function getRow(page) {
+                return new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('prev_page')
+                        .setLabel('⬅️ Précédent')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === 0),
+                    new ButtonBuilder()
+                        .setCustomId('next_page')
+                        .setLabel('Suivant ➡️')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === totalPages - 1)
+                );
+            }
+
+            // Envoyer la première page
+            await interaction.reply({
+                embeds: [generateEmbed(currentPage)],
+                components: [getRow(currentPage)]
             });
 
-            embed.setDescription(description);
+            // Créer un collector pour les boutons
+            const message = await interaction.fetchReply();
+            const filter = i => i.user.id === interaction.user.id && ['prev_page', 'next_page'].includes(i.customId);
+            const collector = message.createMessageComponentCollector({ filter, time: 120000 });
 
-            // Ajouter des statistiques
-            const totalDesires = mostDesired.reduce((sum, movie) => sum + movie.desireRating.count, 0);
-            const averageDesire = (mostDesired.reduce((sum, movie) => sum + movie.desireRating.average, 0) / mostDesired.length).toFixed(1);
-            embed.addFields(
-                { name: 'Total des votes', value: totalDesires.toString(), inline: true },
-                { name: 'Envie moyenne', value: `${averageDesire}/5`, inline: true },
-                { name: 'Films classés', value: mostDesired.length.toString(), inline: true }
-            );
+            collector.on('collect', async i => {
+                if (i.customId === 'prev_page' && currentPage > 0) {
+                    currentPage--;
+                } else if (i.customId === 'next_page' && currentPage < totalPages - 1) {
+                    currentPage++;
+                }
+                await i.update({
+                    embeds: [generateEmbed(currentPage)],
+                    components: [getRow(currentPage)]
+                });
+            });
 
-            await interaction.reply({
-                embeds: [embed],
+            collector.on('end', async () => {
+                // Désactiver les boutons à la fin
+                if (message.editable) {
+                    await message.edit({ components: [getRow(currentPage).setComponents(
+                        ...getRow(currentPage).components.map(btn => btn.setDisabled(true))
+                    )] });
+                }
             });
         } catch (error) {
             console.error('Erreur lors de la récupération des films les plus désirés:', error);

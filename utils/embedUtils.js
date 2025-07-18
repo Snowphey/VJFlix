@@ -1,41 +1,49 @@
 const { EmbedBuilder } = require('discord.js');
 
 class EmbedUtils {
-    static createWatchlistEmbed(watchlist) {
+    static createWatchlistEmbed(watchlist, page = 1, totalPages = 1, totalFilms = null, pageSize = 50) {
         const embed = new EmbedBuilder()
-            .setTitle('🎬 Liste des Films à Regarder')
+            .setTitle(`🎬 Liste des Films à Regarder${totalPages > 1 ? ` — Page ${page}/${totalPages}` : ''}`)
             .setColor(0x00AE86)
             .setTimestamp();
 
         if (watchlist.length === 0) {
             embed.setDescription('Aucun film dans la liste pour le moment.\nUtilisez `/ajouter-film` pour en ajouter !');
         } else {
+            // Calcul de l'index de départ pour la page courante
+            const startIndex = (page - 1) * pageSize;
             const movieList = watchlist.map((movie, index) => {
                 const addedByText = movie.addedBy ? ` (ajouté par <@${movie.addedBy.id}>)` : '';
-                return `${index + 1}. ${movie.title}${addedByText}`;
+                return `${startIndex + index + 1}. ${movie.title}${addedByText}`;
             }).join('\n');
             embed.setDescription(movieList);
-            embed.setFooter({ text: `Total: ${watchlist.length} film(s)` });
+            let footerText = `Page ${page}/${totalPages}`;
+            if (totalFilms !== null) footerText += ` • Total: ${totalFilms} film(s)`;
+            embed.setFooter({ text: footerText });
         }
 
         return embed;
     }
 
-    static createWatchedListEmbed(watchedlist) {
+    static createWatchedListEmbed(watchedlist, page = 1, totalPages = 1, totalFilms = null, pageSize = 50) {
         const embed = new EmbedBuilder()
-            .setTitle('✅ Films Déjà Vus')
+            .setTitle(`✅ Films Déjà Vus${totalPages > 1 ? ` — Page ${page}/${totalPages}` : ''}`)
             .setColor(0x57F287)
             .setTimestamp();
 
         if (watchedlist.length === 0) {
             embed.setDescription('Aucun film marqué comme vu pour le moment.');
         } else {
+            // Calcul de l'index de départ pour la page courante
+            const startIndex = (page - 1) * pageSize;
             const movieList = watchedlist.map((movie, index) => {
                 const addedByText = movie.addedBy ? ` (ajouté par <@${movie.addedBy.id}>)` : '';
-                return `${index + 1}. ${movie.title}${addedByText}`;
+                return `${startIndex + index + 1}. ${movie.title}${addedByText}`;
             }).join('\n');
             embed.setDescription(movieList);
-            embed.setFooter({ text: `Total: ${watchedlist.length} film(s) vu(s)` });
+            let footerText = `Page ${page}/${totalPages}`;
+            if (totalFilms !== null) footerText += ` • Total: ${totalFilms} film(s) vu(s)`;
+            embed.setFooter({ text: footerText });
         }
 
         return embed;
