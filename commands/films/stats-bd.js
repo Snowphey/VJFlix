@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const databaseManager = require('../../utils/databaseManager');
+const EmbedUtils = require('../../utils/embedUtils');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -14,9 +15,38 @@ module.exports = {
             const watchlist = await databaseManager.getUnwatchedMovies();
             const watchedMovies = await databaseManager.getWatchedMovies();
             const allMovies = await databaseManager.getAllMovies();
-            const topDesire = await databaseManager.getMostDesiredMovies(3);
-            const desireRatingsCount = await databaseManager.db.get('SELECT COUNT(*) as count FROM watch_desires');
-            const desireRatedMoviesCount = await databaseManager.db.get('SELECT COUNT(DISTINCT movie_id) as count FROM watch_desires');
+
+            // Récupérer tous les films non vus
+            const unwatchedMovies = await databaseManager.getUnwatchedMovies(0, 1000);
+            // Pour chaque film, récupérer les notes d'envie
+            const moviesWithDesire = [];
+            for (const movie of unwatchedMovies) {
+                const ratings = await databaseManager.getMovieDesireRatings(movie.id);
+                if (!ratings || ratings.length === 0) continue;
+                const count = ratings.length;
+                const average = ratings.reduce((sum, r) => sum + r.desire_rating, 0) / count;
+                moviesWithDesire.push({
+                    ...movie,
+                    desireRating: {
+                        average,
+                        count
+                    },
+                    ratings // pour affichage des votants
+                });
+            }
+
+            // Tri : d'abord par nombre de votes décroissant, puis par moyenne décroissante
+            moviesWithDesire.sort((a, b) => {
+                const countDiff = b.desireRating.count - a.desireRating.count;
+                if (countDiff !== 0) return countDiff;
+                return b.desireRating.average - a.desireRating.average;
+            });
+
+            // Top 3 des films avec la meilleure envie
+            const topDesire = moviesWithDesire.slice(0, 3);
+
+            const desireRatingsCount = await databaseManager.getDesireRatingsCount();
+            const desireRatedMoviesCount = await databaseManager.getDesireRatedMoviesCount();
 
             const embed = new EmbedBuilder()
                 .setColor('#9932CC')
@@ -36,20 +66,20 @@ module.exports = {
             // Top 3 des films avec la meilleure envie
             if (topDesire.length > 0) {
                 const topText = topDesire.map((movie, index) => {
-                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
-                    const avg = movie.desireRating?.average || 0;
-                    const fullHearts = '💜'.repeat(Math.floor(avg));
-                    const emptyHearts = '🤍'.repeat(5 - Math.floor(avg));
-                    return `${medal} ${movie.title} - ${avg}/5 ${fullHearts}${emptyHearts}`;
+                            const rank = index + 1;
+                            const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**${rank}.**`;
+                            const avg = movie.desireRating.average;
+                            const count = movie.desireRating.count;
+                            const stars = EmbedUtils.getDesireStars(avg);
+                            let ratingStr = `${stars} ${avg.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''})`;
+                            return `${medal} **${movie.title}** ${movie.year ? `(${movie.year})` : ''}\n${ratingStr}\n`;
                 }).join('\n');
 
                 embed.addFields({ name: '🏆 Top envies', value: topText, inline: false });
             }
 
             // Statistiques par genre si disponible
-            const movies = await databaseManager.db.all(`
-                SELECT genre FROM movies WHERE genre IS NOT NULL AND genre != '[]'
-            `);
+            const movies = await databaseManager.getMoviesWithGenres();
 
             if (movies.length > 0) {
                 const genreCounts = {};

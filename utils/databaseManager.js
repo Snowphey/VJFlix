@@ -594,6 +594,31 @@ class DatabaseManager {
         });
         return result;
     }
+
+    
+    /**
+     * Retourne le nombre total de votes d'envie (toutes entrées dans watch_desires)
+     */
+    async getDesireRatingsCount() {
+        const result = await this.get('SELECT COUNT(*) as count FROM watch_desires');
+        return result;
+    }
+
+    /**
+     * Retourne le nombre de films différents ayant au moins une note d'envie
+     */
+    async getDesireRatedMoviesCount() {
+        const result = await this.get('SELECT COUNT(DISTINCT movie_id) as count FROM watch_desires');
+        return result;
+    }
+
+    /**
+     * Retourne tous les films ayant un champ genre non vide (pour stats par genre)
+     */
+    async getMoviesWithGenres() {
+        const movies = await this.all(`SELECT genre FROM movies WHERE genre IS NOT NULL AND genre != '[]'`);
+        return movies;
+    }
 }
 
 module.exports = new DatabaseManager();
