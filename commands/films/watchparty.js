@@ -362,31 +362,22 @@ module.exports = {
                 flags: MessageFlags.Ephemeral
             });
         }
-        // Fermer la watchparty en base
-        await databaseManager.closeWatchparty(messageId, new Date().toISOString());
 
-        // Créer l'embed de fin
-        const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-        embed.setColor('#00ff00')
-            .setTitle(`✅ Watchparty finalisée`)
-            .setFooter({ text: 'Watchparty terminée' });
-
-        // Désactiver tous les boutons
-        const disabledComponents = interaction.message.components.map(row => {
-            const newRow = new ActionRowBuilder();
-            row.components.forEach(component => {
-                if (component.type === ComponentType.Button) {
-                    newRow.addComponents(
-                        ButtonBuilder.from(component).setDisabled(true)
-                    );
-                }
-            });
-            return newRow;
-        });
-
-        await interaction.update({
-            embeds: [embed],
-            components: disabledComponents
+        // Afficher la confirmation
+        const confirmRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('watchparty_confirm_end')
+                .setLabel('Confirmer')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId('watchparty_cancel')
+                .setLabel('Annuler')
+                .setStyle(ButtonStyle.Secondary)
+        );
+        await interaction.reply({
+            content: 'Êtes-vous sûr de vouloir finaliser la watchparty ? Cette action est irréversible.',
+            components: [confirmRow],
+            flags: MessageFlags.Ephemeral
         });
     },
 
@@ -406,14 +397,91 @@ module.exports = {
                 flags: MessageFlags.Ephemeral
             });
         }
-        // Message de confirmation avant suppression
+        // Afficher la confirmation
+        const confirmRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('watchparty_confirm_delete')
+                .setLabel('Confirmer')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('watchparty_cancel')
+                .setLabel('Annuler')
+                .setStyle(ButtonStyle.Secondary)
+        );
         await interaction.reply({
-            content: '🗑️ Watchparty supprimée avec succès.',
+            content: 'Êtes-vous sûr de vouloir supprimer la watchparty ? Cette action est irréversible.',
+            components: [confirmRow],
             flags: MessageFlags.Ephemeral
         });
+    },
+    // Handler pour la confirmation de finalisation
+    async handleConfirmEnd(interaction) {
+        const messageId = interaction.message.reference?.messageId || interaction.message.id;
+        const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
+        if (!watchpartyRow) {
+            return await interaction.update({
+                content: 'Erreur : données de la watchparty introuvables.',
+                components: [],
+            });
+        }
+        // Fermer la watchparty en base
+        await databaseManager.closeWatchparty(messageId, new Date().toISOString());
+        // Créer l'embed de fin
+        const embed = EmbedBuilder.from(interaction.message.embeds[0] || interaction.message.embeds?.[0] || {});
+        embed.setColor('#00ff00')
+            .setTitle(`✅ Watchparty finalisée`)
+            .setFooter({ text: 'Watchparty terminée' });
+        // Désactiver tous les boutons
+        const originalMsg = await interaction.channel.messages.fetch(messageId);
+        const disabledComponents = originalMsg.components.map(row => {
+            const newRow = new ActionRowBuilder();
+            row.components.forEach(component => {
+                if (component.type === ComponentType.Button) {
+                    newRow.addComponents(
+                        ButtonBuilder.from(component).setDisabled(true)
+                    );
+                }
+            });
+            return newRow;
+        });
+        await originalMsg.edit({
+            embeds: [embed],
+            components: disabledComponents
+        });
+        await interaction.update({
+            content: 'La watchparty a été finalisée.',
+            components: [],
+        });
+    },
+
+    // Handler pour la confirmation de suppression
+    async handleConfirmDelete(interaction) {
+        const messageId = interaction.message.reference?.messageId || interaction.message.id;
+        const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
+        if (!watchpartyRow) {
+            return await interaction.update({
+                content: 'Erreur : données de la watchparty introuvables.',
+                components: [],
+            });
+        }
         // Supprimer la watchparty en base
         await databaseManager.deleteWatchparty(messageId);
         // Supprimer le message Discord
-        await interaction.message.delete();
+        try {
+            const originalMsg = await interaction.channel.messages.fetch(messageId);
+            await originalMsg.delete();
+        } catch (e) {}
+        await interaction.update({
+            content: '🗑️ Watchparty supprimée avec succès.',
+            components: [],
+        });
+    },
+
+    // Handler pour annuler la confirmation
+    async handleCancel(interaction) {
+        await interaction.update({
+            content: 'Action annulée.',
+            components: [],
+        });
     },
 };

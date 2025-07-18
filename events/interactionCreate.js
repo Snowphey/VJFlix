@@ -297,6 +297,12 @@ module.exports = {
                         await watchpartyCommand.handleEndWatchparty(interaction);
                     } else if (interaction.customId === 'watchparty_delete') {
                         await watchpartyCommand.handleDeleteWatchparty(interaction);
+                    } else if (interaction.customId === 'watchparty_confirm_end') {
+                        await watchpartyCommand.handleConfirmEnd(interaction);
+                    } else if (interaction.customId === 'watchparty_confirm_delete') {
+                        await watchpartyCommand.handleConfirmDelete(interaction);
+                    } else if (interaction.customId === 'watchparty_cancel') {
+                        await watchpartyCommand.handleCancel(interaction);
                     }
                 } catch (error) {
                     console.error('Erreur lors de l\'interaction watchparty:', error);
