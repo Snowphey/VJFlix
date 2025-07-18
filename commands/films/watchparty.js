@@ -375,6 +375,14 @@ module.exports = {
                 flags: MessageFlags.Ephemeral
             });
         }
+        // Vérifier s'il existe déjà une autre watchparty ouverte dans ce salon
+        const openWatchparty = await databaseManager.getOpenWatchpartyByChannel(interaction.channelId);
+        if (openWatchparty && openWatchparty.messageId !== messageId) {
+            return await interaction.reply({
+                content: '❌ Il y a déjà une autre watchparty ouverte dans ce salon. Merci de la finaliser ou supprimer avant d\'en rouvrir une autre.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
         await databaseManager.reopenWatchparty(messageId, new Date().toISOString());
         // Réactiver les bons boutons sur le message principal
         const originalMsg = await interaction.channel.messages.fetch(messageId);
