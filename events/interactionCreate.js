@@ -321,16 +321,30 @@ module.exports = {
                     });
                 }
             
-            // === HANDLERS POUR PAGINATION ===
-            } else if (interaction.customId.startsWith('list_movies_page_')) {
-                const listerFilmsCommand = require('../commands/films/lister-films.js');
+            // === HANDLER PAGINATION WATCHLIST/WATCHEDLIST ===
+            } else if ([
+                'watch_prev_', 'watch_next_', 'watched_prev_', 'watched_next_'
+            ].some(prefix => interaction.customId.startsWith(prefix))) {
+                const listUpdater = require('../utils/listUpdater.js');
                 try {
-                    await listerFilmsCommand.handleMovieListPagination(interaction);
+                    await listUpdater.handleListPagination(interaction);
                 } catch (error) {
-                    console.error('Erreur lors de la navigation:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue lors de la navigation.', 
-                        flags: MessageFlags.Ephemeral 
+                    console.error('Erreur lors de la pagination des listes:', error);
+                    await interaction.reply({
+                        content: 'Une erreur est survenue lors de la pagination.',
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+            // === HANDLER PAGINATION TOP ENVIES ===
+            } else if (interaction.customId.startsWith('topenvies_prev_page') || interaction.customId.startsWith('topenvies_next_page')) {    
+                const topEnviesCommand = require('../commands/films/top-envies.js');
+                try {
+                    await topEnviesCommand.handleTopEnviesPagination(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de la pagination du top envies:', error);
+                    await interaction.reply({
+                        content: 'Une erreur est survenue lors de la pagination du top envies.',
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             

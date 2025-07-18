@@ -1,11 +1,11 @@
 const databaseManager = require('./databaseManager');
 const EmbedUtils = require('./embedUtils');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
 /**
  * Met à jour la liste des films dans le canal défini
  * @param {Client} client - Instance du client Discord
  */
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
 async function updateListInChannel(client) {
     const settings = await databaseManager.getSettings();
@@ -75,45 +75,7 @@ async function updateListInChannel(client) {
             await databaseManager.setListMessageId(message.id);
         }
 
-        // Collector pour la pagination
-        const filter = i => ['watch_prev_', 'watch_next_', 'watched_prev_', 'watched_next_'].some(prefix => i.customId.startsWith(prefix));
-        const collector = message.createMessageComponentCollector({ filter, time: 120000 });
-
-        collector.on('collect', async i => {
-            let update = false;
-            if (i.customId.startsWith('watch_prev_') && watchlistPage > 0) {
-                watchlistPage--;
-                update = true;
-            } else if (i.customId.startsWith('watch_next_') && watchlistPage < watchlistPages.length - 1) {
-                watchlistPage++;
-                update = true;
-            } else if (i.customId.startsWith('watched_prev_') && watchedlistPage > 0) {
-                watchedlistPage--;
-                update = true;
-            } else if (i.customId.startsWith('watched_next_') && watchedlistPage < watchedlistPages.length - 1) {
-                watchedlistPage++;
-                update = true;
-            }
-            if (update) {
-                await i.update({
-                    embeds: [getWatchedlistEmbed(watchedlistPage), getWatchlistEmbed(watchlistPage)],
-                    components: [getRow('watched', watchedlistPage, watchedlistPages.length), getRow('watch', watchlistPage, watchlistPages.length)]
-                });
-            } else {
-                await i.deferUpdate();
-            }
-        });
-
-        collector.on('end', async () => {
-            // Désactiver les boutons à la fin
-            if (message.editable) {
-                const disabledRows = [
-                    getRow('watched', watchedlistPage, watchedlistPages.length),
-                    getRow('watch', watchlistPage, watchlistPages.length)
-                ].map(row => row.setComponents(...row.components.map(btn => btn.setDisabled(true))));
-                await message.edit({ components: disabledRows });
-            }
-        });
+        // La pagination est maintenant gérée dans le handler d'interaction (interactionCreate.js)
     } catch (error) {
         console.error('Erreur lors de la mise à jour de la liste:', error);
     }
@@ -144,4 +106,64 @@ async function deleteListMessage(client) {
     }
 }
 
-module.exports = { updateListInChannel, deleteListMessage };
+/**
+ * Handler pour la pagination des listes de films
+ * @param {ButtonInteraction} interaction
+ */
+async function handleListPagination(interaction) {
+    // On récupère l'état courant à partir des customId
+    // customId: watched_prev_0, watch_next_2, etc.
+    const settings = await databaseManager.getSettings();
+    const watchlist = await databaseManager.getUnwatchedMovies();
+    const watchedlist = await databaseManager.getWatchedMovies();
+    const watchlistPages = paginate(watchlist);
+    const watchedlistPages = paginate(watchedlist);
+
+    // Trouver la page courante à partir des boutons
+    // On parse les customId pour savoir quel bouton a été cliqué et sur quelle page on était
+    let watchlistPage = 0;
+    let watchedlistPage = 0;
+    if (interaction.message && interaction.message.components && interaction.message.components.length === 2) {
+        // On récupère les customId des boutons pour retrouver la page
+        const watchedRow = interaction.message.components[0];
+        const watchRow = interaction.message.components[1];
+        const watchedPrevId = watchedRow.components[0].customId;
+        const watchedNextId = watchedRow.components[1].customId;
+        const watchPrevId = watchRow.components[0].customId;
+        const watchNextId = watchRow.components[1].customId;
+        watchedlistPage = parseInt(watchedPrevId.split('_')[2]);
+        watchlistPage = parseInt(watchPrevId.split('_')[2]);
+    }
+
+    let update = false;
+    if (interaction.customId.startsWith('watch_prev_') && watchlistPage > 0) {
+        watchlistPage--;
+        update = true;
+    } else if (interaction.customId.startsWith('watch_next_') && watchlistPage < watchlistPages.length - 1) {
+        watchlistPage++;
+        update = true;
+    } else if (interaction.customId.startsWith('watched_prev_') && watchedlistPage > 0) {
+        watchedlistPage--;
+        update = true;
+    } else if (interaction.customId.startsWith('watched_next_') && watchedlistPage < watchedlistPages.length - 1) {
+        watchedlistPage++;
+        update = true;
+    }
+
+    if (update) {
+        await interaction.update({
+            embeds: [
+                getWatchedlistEmbed(watchedlistPages, watchedlistPage, watchedlist),
+                getWatchlistEmbed(watchlistPages, watchlistPage, watchlist)
+            ],
+            components: [
+                getRow('watched', watchedlistPage, watchedlistPages.length),
+                getRow('watch', watchlistPage, watchlistPages.length)
+            ]
+        });
+    } else {
+        await interaction.deferUpdate();
+    }
+}
+
+module.exports = { updateListInChannel, deleteListMessage, handleListPagination };
