@@ -335,6 +335,7 @@ module.exports = {
         }
 
         // Créer l'embed de confirmation d'ajout réussi
+
         const embed = new EmbedBuilder()
             .setColor('#00ff00')
             .setTitle('✅ Film ajouté à la base de données')
@@ -372,20 +373,32 @@ module.exports = {
 
         embed.setTimestamp();
 
-        // Boutons d'action
-        const row = new ActionRowBuilder()
-            .addComponents(
+        // Boutons d'action avec toggle vu/non-vu
+        const row = new ActionRowBuilder();
+        if (result.movie.watched) {
+            row.addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`mark_watched_${result.movie.id}`)
+                    .setCustomId(`mark_unwatched_ajouter_${result.movie.id}`)
+                    .setLabel('Marquer comme non vu')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('👁️')
+            );
+        } else {
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`mark_watched_ajouter_${result.movie.id}`)
                     .setLabel('Marquer comme vu')
                     .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅'),
-                new ButtonBuilder()
-                    .setCustomId(`desire_quick_${result.movie.id}`)
-                    .setLabel('Noter l\'envie')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('💜')
+                    .setEmoji('✅')
             );
+        }
+        row.addComponents(
+            new ButtonBuilder()
+                .setCustomId(`desire_quick_${result.movie.id}`)
+                .setLabel('Noter l\'envie')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('💜')
+        );
 
         await interaction.editReply({
             embeds: [embed],
@@ -416,6 +429,131 @@ module.exports = {
                 .setDescription('La recherche de film a été annulée.')
                 .setTimestamp()],
             components: []
+        });
+    },
+
+    // === HANDLERS DE BOUTONS VU/NON-VU ===
+    async handleMarkWatched(interaction) {
+        const movieId = parseInt(interaction.customId.split('_').pop());
+        // Marquer le film comme vu
+        const result = await databaseManager.markAsWatched(movieId, interaction.user);
+        if (!result) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de marquer le film comme vu.')
+                    .setTimestamp()],
+                ephemeral: true
+            });
+        }
+        // Rafraîchir l'embed de confirmation d'ajout avec le nouveau statut
+        const movie = await databaseManager.getMovieById(movieId);
+        const embed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('✅ Film ajouté à la base de données')
+            .setDescription(`**${movie.title}** a été ajouté avec succès !`)
+            .addFields(
+                { name: 'ID en base', value: movie.id.toString(), inline: true },
+                { name: 'Année', value: movie.year?.toString() || 'N/A', inline: true }
+            );
+        if (movie.tmdbId) {
+            embed.addFields({ name: 'TMDb ID', value: movie.tmdbId.toString(), inline: true });
+        }
+        if (movie.director) {
+            embed.addFields({ name: 'Réalisateur', value: movie.director, inline: true });
+        }
+        if (movie.genre && movie.genre.length > 0) {
+            embed.addFields({ name: 'Genres', value: movie.genre.join(', '), inline: true });
+        }
+        if (movie.tmdbRating) {
+            embed.addFields({ name: 'Note TMDb', value: `${movie.tmdbRating.toFixed(1)}/10`, inline: true });
+        }
+        if (movie.plot) {
+            embed.addFields({ name: 'Synopsis', value: movie.plot.length > 1024 ? movie.plot.substring(0, 1021) + '...' : movie.plot });
+        }
+        if (movie.poster && movie.poster !== 'N/A') {
+            embed.setThumbnail(movie.poster);
+        }
+        embed.setTimestamp();
+        const row = new ActionRowBuilder();
+        row.addComponents(
+            new ButtonBuilder()
+                .setCustomId(`mark_unwatched_ajouter_${movie.id}`)
+                .setLabel('Marquer comme non vu')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('👁️'),
+            new ButtonBuilder()
+                .setCustomId(`desire_quick_${movie.id}`)
+                .setLabel('Noter l\'envie')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('💜')
+        );
+        await interaction.update({
+            embeds: [embed],
+            components: [row]
+        });
+    },
+
+    async handleMarkUnwatched(interaction) {
+        const movieId = parseInt(interaction.customId.split('_').pop());
+        // Marquer le film comme non vu
+        const result = await databaseManager.markAsUnwatched(movieId, interaction.user);
+        if (!result) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de marquer le film comme non vu.')
+                    .setTimestamp()],
+                ephemeral: true
+            });
+        }
+        // Rafraîchir l'embed de confirmation d'ajout avec le nouveau statut
+        const movie = await databaseManager.getMovieById(movieId);
+        const embed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('✅ Film ajouté à la base de données')
+            .setDescription(`**${movie.title}** a été ajouté avec succès !`)
+            .addFields(
+                { name: 'ID en base', value: movie.id.toString(), inline: true },
+                { name: 'Année', value: movie.year?.toString() || 'N/A', inline: true }
+            );
+        if (movie.tmdbId) {
+            embed.addFields({ name: 'TMDb ID', value: movie.tmdbId.toString(), inline: true });
+        }
+        if (movie.director) {
+            embed.addFields({ name: 'Réalisateur', value: movie.director, inline: true });
+        }
+        if (movie.genre && movie.genre.length > 0) {
+            embed.addFields({ name: 'Genres', value: movie.genre.join(', '), inline: true });
+        }
+        if (movie.tmdbRating) {
+            embed.addFields({ name: 'Note TMDb', value: `${movie.tmdbRating.toFixed(1)}/10`, inline: true });
+        }
+        if (movie.plot) {
+            embed.addFields({ name: 'Synopsis', value: movie.plot.length > 1024 ? movie.plot.substring(0, 1021) + '...' : movie.plot });
+        }
+        if (movie.poster && movie.poster !== 'N/A') {
+            embed.setThumbnail(movie.poster);
+        }
+        embed.setTimestamp();
+        const row = new ActionRowBuilder();
+        row.addComponents(
+            new ButtonBuilder()
+                .setCustomId(`mark_watched_ajouter_${movie.id}`)
+                .setLabel('Marquer comme vu')
+                .setStyle(ButtonStyle.Success)
+                .setEmoji('✅'),
+            new ButtonBuilder()
+                .setCustomId(`desire_quick_${movie.id}`)
+                .setLabel('Noter l\'envie')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('💜')
+        );
+        await interaction.update({
+            embeds: [embed],
+            components: [row]
         });
     }
 };

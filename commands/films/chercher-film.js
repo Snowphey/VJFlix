@@ -64,7 +64,7 @@ module.exports = {
         await this.displayMovieDetails(interaction, movie);
     },
 
-    async displayMovieDetails(interaction, movie) {
+    async displayMovieDetails(interaction, movie, isUpdate = false) {
         // Construire l'embed avec les détails du film
         const embed = new EmbedBuilder()
             .setColor('#0099ff')
@@ -145,12 +145,11 @@ module.exports = {
 
         // Boutons d'action
         const row = new ActionRowBuilder();
-        
-        // Bouton pour marquer comme vu/non vu
+        // Bouton pour marquer comme vu/non vu (customId spécifique)
         if (movie.watched) {
             row.addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`mark_unwatched_${movie.id}`)
+                    .setCustomId(`mark_unwatched_chercher_${movie.id}`)
                     .setLabel('Marquer comme non vu')
                     .setStyle(ButtonStyle.Secondary)
                     .setEmoji('👁️')
@@ -158,7 +157,7 @@ module.exports = {
         } else {
             row.addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`mark_watched_${movie.id}`)
+                    .setCustomId(`mark_watched_chercher_${movie.id}`)
                     .setLabel('Marquer comme vu')
                     .setStyle(ButtonStyle.Success)
                     .setEmoji('✅')
@@ -183,13 +182,61 @@ module.exports = {
                 .setEmoji('🗑️')
         );
 
-        await interaction.reply({
-            embeds: [embed],
-            components: [row]
-        });
+
+        if (isUpdate && interaction.isMessageComponent && interaction.isMessageComponent()) {
+            await interaction.update({
+                embeds: [embed],
+                components: [row]
+            });
+        } else {
+            await interaction.reply({
+                embeds: [embed],
+                components: [row]
+            });
+        }
     },
 
     // === HANDLERS DE BOUTONS ===
+
+    // Handler custom : marquer comme vu
+    async handleMarkWatched(interaction) {
+        const movieId = parseInt(interaction.customId.split('_').pop());
+        // Marquer le film comme vu
+        const result = await databaseManager.markAsWatched(movieId, interaction.user);
+        if (!result) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de marquer le film comme vu.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        // Rafraîchir le message avec le nouveau statut
+        const movie = await databaseManager.getMovieById(movieId);
+        await this.displayMovieDetails(interaction, movie, true);
+    },
+
+    // Handler custom : marquer comme non-vu
+    async handleMarkUnwatched(interaction) {
+        const movieId = parseInt(interaction.customId.split('_').pop());
+        // Marquer le film comme non vu
+        const result = await databaseManager.markAsUnwatched(movieId, interaction.user);
+        if (!result) {
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle('❌ Erreur')
+                    .setDescription('Impossible de marquer le film comme non vu.')
+                    .setTimestamp()],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        // Rafraîchir le message avec le nouveau statut
+        const movie = await databaseManager.getMovieById(movieId);
+        await this.displayMovieDetails(interaction, movie, true);
+    },
 
     async handleMovieDetails(interaction) {
         const movieId = parseInt(interaction.customId.split('_')[2]);
@@ -206,6 +253,6 @@ module.exports = {
             });
         }
 
-        await this.displayMovieDetails(interaction, movie);
+        await this.displayMovieDetails(interaction, movie, true);
     },
 };

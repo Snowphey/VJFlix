@@ -81,26 +81,77 @@ module.exports = {
             
             // === HANDLERS POUR MARQUER VU/NON VU ===
             } else if (interaction.customId.startsWith('mark_watched_')) {
-                const marquerVuCommand = require('../commands/films/marquer-vu.js');
-                try {
-                    await marquerVuCommand.handleMarkWatched(interaction);
-                } catch (error) {
-                    console.error('Erreur lors du marquage comme vu:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue lors du marquage du film.', 
-                        flags: MessageFlags.Ephemeral 
-                    });
+                // Routing explicite selon le customId
+                if (interaction.customId.startsWith('mark_watched_ajouter_')) {
+                    const ajouterFilmCommand = require('../commands/films/ajouter-film.js');
+                    try {
+                        await ajouterFilmCommand.handleMarkWatched(interaction);
+                    } catch (error) {
+                        console.error('Erreur lors du marquage comme vu (ajouter):', error);
+                        await interaction.reply({ 
+                            content: 'Une erreur est survenue lors du marquage du film.', 
+                            flags: MessageFlags.Ephemeral 
+                        });
+                    }
+                } else if (interaction.customId.startsWith('mark_watched_chercher_')) {
+                    const chercherFilmCommand = require('../commands/films/chercher-film.js');
+                    try {
+                        await chercherFilmCommand.handleMarkWatched(interaction);
+                    } catch (error) {
+                        console.error('Erreur lors du marquage comme vu (chercher):', error);
+                        await interaction.reply({ 
+                            content: 'Une erreur est survenue lors du marquage du film.', 
+                            flags: MessageFlags.Ephemeral 
+                        });
+                    }
+                } else {
+                    // fallback générique (pour compatibilité)
+                    const marquerVuCommand = require('../commands/films/marquer-vu.js');
+                    try {
+                        await marquerVuCommand.handleMarkWatched(interaction);
+                    } catch (error) {
+                        console.error('Erreur lors du marquage comme vu (générique):', error);
+                        await interaction.reply({ 
+                            content: 'Une erreur est survenue lors du marquage du film.', 
+                            flags: MessageFlags.Ephemeral 
+                        });
+                    }
                 }
             } else if (interaction.customId.startsWith('mark_unwatched_')) {
-                const marquerNonVuCommand = require('../commands/films/marquer-non-vu.js');
-                try {
-                    await marquerNonVuCommand.handleMarkUnwatched(interaction);
-                } catch (error) {
-                    console.error('Erreur lors du marquage comme non vu:', error);
-                    await interaction.reply({ 
-                        content: 'Une erreur est survenue lors du marquage du film.', 
-                        flags: MessageFlags.Ephemeral 
-                    });
+                if (interaction.customId.startsWith('mark_unwatched_ajouter_')) {
+                    const ajouterFilmCommand = require('../commands/films/ajouter-film.js');
+                    try {
+                        await ajouterFilmCommand.handleMarkUnwatched(interaction);
+                    } catch (error) {
+                        console.error('Erreur lors du marquage comme non vu (ajouter):', error);
+                        await interaction.reply({ 
+                            content: 'Une erreur est survenue lors du marquage du film.', 
+                            flags: MessageFlags.Ephemeral 
+                        });
+                    }
+                } else if (interaction.customId.startsWith('mark_unwatched_chercher_')) {
+                    const chercherFilmCommand = require('../commands/films/chercher-film.js');
+                    try {
+                        await chercherFilmCommand.handleMarkUnwatched(interaction);
+                    } catch (error) {
+                        console.error('Erreur lors du marquage comme non vu (chercher):', error);
+                        await interaction.reply({ 
+                            content: 'Une erreur est survenue lors du marquage du film.', 
+                            flags: MessageFlags.Ephemeral 
+                        });
+                    }
+                } else {
+                    // fallback générique (pour compatibilité)
+                    const marquerVuCommand = require('../commands/films/marquer-vu.js');
+                    try {
+                        await marquerVuCommand.handleMarkUnwatched(interaction);
+                    } catch (error) {
+                        console.error('Erreur lors du marquage comme non vu (générique):', error);
+                        await interaction.reply({ 
+                            content: 'Une erreur est survenue lors du marquage du film.', 
+                            flags: MessageFlags.Ephemeral 
+                        });
+                    }
                 }
             
             // === HANDLERS POUR SUPPRIMER FILMS ===
