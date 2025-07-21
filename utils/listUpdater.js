@@ -7,6 +7,44 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('
  * @param {Client} client - Instance du client Discord
  */
 
+
+// Pagination: 50 films max par page
+const PAGE_SIZE = 50;
+function paginate(list) {
+    const pages = [];
+    for (let i = 0; i < list.length; i += PAGE_SIZE) {
+        pages.push(list.slice(i, i + PAGE_SIZE));
+    }
+    if (pages.length === 0) pages.push([]); // Toujours au moins une page
+    return pages;
+}
+
+// Génère l'embed pour une page donnée
+function getWatchlistEmbed(watchlistPages, watchlistPage, watchlist) {
+    const page = watchlistPages[watchlistPage] || [];
+    return EmbedUtils.createWatchlistEmbed(page, watchlistPage + 1, watchlistPages.length, watchlist.length, PAGE_SIZE);
+}
+function getWatchedlistEmbed(watchedlistPages, watchedlistPage, watchedlist) {
+    const page = watchedlistPages[watchedlistPage] || [];
+    return EmbedUtils.createWatchedListEmbed(page, watchedlistPage + 1, watchedlistPages.length, watchedlist.length, PAGE_SIZE);
+}
+
+// Génère les boutons de pagination
+function getRow(type, pageIdx, totalPages) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`${type}_prev_${pageIdx}`)
+            .setLabel('⬅️ Précédent')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(pageIdx === 0),
+        new ButtonBuilder()
+            .setCustomId(`${type}_next_${pageIdx}`)
+            .setLabel('Suivant ➡️')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(pageIdx === totalPages - 1)
+    );
+}
+
 async function updateListInChannel(client) {
     const settings = await databaseManager.getSettings();
     if (!settings.listChannelId) return;
@@ -15,51 +53,14 @@ async function updateListInChannel(client) {
         const channel = await client.channels.fetch(settings.listChannelId);
         const watchlist = await databaseManager.getUnwatchedMovies();
         const watchedlist = await databaseManager.getWatchedMovies();
-
-        // Pagination: 50 films max par page
-        const PAGE_SIZE = 50;
-        function paginate(list) {
-            const pages = [];
-            for (let i = 0; i < list.length; i += PAGE_SIZE) {
-                pages.push(list.slice(i, i + PAGE_SIZE));
-            }
-            if (pages.length === 0) pages.push([]); // Toujours au moins une page
-            return pages;
-        }
         const watchlistPages = paginate(watchlist);
         const watchedlistPages = paginate(watchedlist);
-
-        // Génère l'embed pour une page donnée
-        function getWatchlistEmbed(pageIdx) {
-            const page = watchlistPages[pageIdx] || [];
-            return EmbedUtils.createWatchlistEmbed(page, pageIdx + 1, watchlistPages.length, watchlist.length, PAGE_SIZE);
-        }
-        function getWatchedlistEmbed(pageIdx) {
-            const page = watchedlistPages[pageIdx] || [];
-            return EmbedUtils.createWatchedListEmbed(page, pageIdx + 1, watchedlistPages.length, watchedlist.length, PAGE_SIZE);
-        }
-
-        // Génère les boutons de pagination
-        function getRow(type, pageIdx, totalPages) {
-            return new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`${type}_prev_${pageIdx}`)
-                    .setLabel('⬅️ Précédent')
-                    .setStyle(ButtonStyle.Primary)
-                    .setDisabled(pageIdx === 0),
-                new ButtonBuilder()
-                    .setCustomId(`${type}_next_${pageIdx}`)
-                    .setLabel('Suivant ➡️')
-                    .setStyle(ButtonStyle.Primary)
-                    .setDisabled(pageIdx === totalPages - 1)
-            );
-        }
 
         // On commence à la page 0 pour chaque liste
         let watchlistPage = 0;
         let watchedlistPage = 0;
 
-        const embeds = [getWatchedlistEmbed(watchedlistPage), getWatchlistEmbed(watchlistPage)];
+        const embeds = [getWatchedlistEmbed(watchedlistPages, watchedlistPage, watchedlist), getWatchlistEmbed(watchlistPages, watchlistPage, watchlist)];
         const components = [getRow('watched', watchedlistPage, watchedlistPages.length), getRow('watch', watchlistPage, watchlistPages.length)];
 
         let message;

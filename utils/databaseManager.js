@@ -355,7 +355,7 @@ class DatabaseManager {
         const movies = await this.all(`
             SELECT * FROM movies 
             WHERE watched = TRUE
-            ORDER BY watched_at DESC
+            ORDER BY watched_at ASC
             LIMIT ? OFFSET ?
         `, [limit, offset]);
 
