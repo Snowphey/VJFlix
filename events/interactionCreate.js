@@ -320,6 +320,29 @@ module.exports = {
                         flags: MessageFlags.Ephemeral 
                     });
                 }
+            // === HANDLERS POUR BATCH NOTE ===
+            } else if (interaction.customId.startsWith('batch_desire_')) {
+                const batchNoteCommand = require('../commands/films/batch-note.js');
+                try {
+                    await batchNoteCommand.handleBatchDesireRating(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de la notation batch:', error);
+                    await interaction.reply({
+                        content: 'Une erreur est survenue lors de la notation batch.',
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+            } else if (interaction.customId.startsWith('batch_skip_')) {
+                const batchNoteCommand = require('../commands/films/batch-note.js');
+                try {
+                    await batchNoteCommand.handleBatchSkip(interaction);
+                } catch (error) {
+                    console.error('Erreur lors du skip batch:', error);
+                    await interaction.reply({
+                        content: 'Une erreur est survenue lors du skip batch.',
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
             
             // === HANDLER PAGINATION WATCHLIST/WATCHEDLIST ===
             } else if ([
@@ -347,7 +370,18 @@ module.exports = {
                         flags: MessageFlags.Ephemeral
                     });
                 }
-            
+            // === HANDLER PAGINATION ENVIES ===
+            } else if (interaction.customId.startsWith('envies_prev_page') || interaction.customId.startsWith('envies_next_page')) {
+                const enviesCommand = require('../commands/films/envies.js');
+                try {
+                    await enviesCommand.handleEnviesPagination(interaction);
+                } catch (error) {
+                    console.error('Erreur lors de la pagination des envies:', error);
+                    await interaction.reply({
+                        content: 'Une erreur est survenue lors de la pagination des envies.',
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
             // === HANDLERS POUR WATCHPARTY ===
             } else if (interaction.customId.startsWith('watchparty_')) {
                 const watchpartyCommand = require('../commands/films/watchparty.js');

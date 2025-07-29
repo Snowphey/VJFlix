@@ -432,6 +432,36 @@ class DatabaseManager {
 
     // === MÉTHODES POUR LES NOTATIONS ===
 
+        /**
+     * Retourne tous les films non notés (envie) par l'utilisateur, triés par ordre d'ajout
+     */
+    async getUnratedMoviesByUser(userId, offset = 0, limit = 100) {
+        const movies = await this.all(`
+            SELECT m.* FROM movies m
+            WHERE m.id NOT IN (
+                SELECT movie_id FROM watch_desires WHERE user_id = ?
+            )
+            ORDER BY m.added_at ASC
+            LIMIT ? OFFSET ?
+        `, [userId, limit, offset]);
+        return movies.map(movie => this.formatMovie(movie));
+    }
+
+        /**
+     * Retourne tous les films non notés (envie) par l'utilisateur ET non vus, triés par ordre d'ajout
+     */
+    async getUnratedUnwatchedMoviesByUser(userId, offset = 0, limit = 100) {
+        const movies = await this.all(`
+            SELECT m.* FROM movies m
+            WHERE m.id NOT IN (
+                SELECT movie_id FROM watch_desires WHERE user_id = ?
+            )
+            AND m.watched = FALSE
+            ORDER BY m.added_at ASC
+            LIMIT ? OFFSET ?
+        `, [userId, limit, offset]);
+        return movies.map(movie => this.formatMovie(movie));
+    }
 
     // === MÉTHODES POUR LES NOTES D'ENVIE ===
 

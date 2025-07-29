@@ -65,13 +65,13 @@ function generateEmbed(moviesWithDesire, page) {
     });
     embed.setDescription(description);
 
-    // Statistiques de la page
-    const totalDesires = mostDesired.reduce((sum, movie) => sum + movie.desireRating.count, 0);
-    const averageDesire = (mostDesired.reduce((sum, movie) => sum + movie.desireRating.average, 0) / (mostDesired.length || 1)).toFixed(1);
+    // Statistiques globales
+    const totalVotes = moviesWithDesire.reduce((sum, movie) => sum + movie.desireRating.count, 0);
+    const globalAverage = (moviesWithDesire.reduce((sum, movie) => sum + movie.desireRating.average, 0) / (moviesWithDesire.length || 1)).toFixed(1);
     embed.addFields(
-        { name: 'Total des votes (page)', value: totalDesires.toString(), inline: true },
-        { name: 'Envie moyenne (page)', value: `${averageDesire}/5`, inline: true },
-        { name: 'Films classés (page)', value: mostDesired.length.toString(), inline: true }
+        { name: 'Total des votes', value: totalVotes.toString(), inline: true },
+        { name: 'Envie moyenne', value: `${globalAverage}/5`, inline: true },
+        { name: 'Films classés', value: moviesWithDesire.length.toString(), inline: true }
     );
     return embed;
 }
