@@ -3,6 +3,11 @@ const path = require('path');
 const fs = require('fs');
 
 class DatabaseManager {
+    async cleanupOldBatchNoteSessions(maxAgeMinutes = 60) {
+        // Supprime les sessions de plus de maxAgeMinutes
+        const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000).toISOString();
+        await this.run(`DELETE FROM batch_note_sessions WHERE created_at < ?`, [cutoff]);
+    }
     constructor() {
         this.dbPath = path.join(__dirname, '..', 'data', 'vjflix.db');
         this.dataPath = path.join(__dirname, '..', 'data');
@@ -91,6 +96,13 @@ class DatabaseManager {
             `CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT
+            )`,
+
+            // Table des sessions batch note temporaires
+            `CREATE TABLE IF NOT EXISTS batch_note_sessions (
+                user_id TEXT PRIMARY KEY,
+                movie_ids TEXT NOT NULL, -- JSON array
+                created_at TEXT NOT NULL
             )`
         ];
 
@@ -171,6 +183,30 @@ class DatabaseManager {
                 resolve();
             }
         });
+    }
+
+    
+    // === MÉTHODES POUR LES SESSIONS DE BATCH NOTE ===
+
+    async createBatchNoteSession(userId, movieIds) {
+        // movieIds: array of int
+        const now = new Date().toISOString();
+        await this.run(`INSERT OR REPLACE INTO batch_note_sessions (user_id, movie_ids, created_at) VALUES (?, ?, ?)`,
+            [userId, JSON.stringify(movieIds), now]);
+    }
+
+    async getBatchNoteSession(userId) {
+        const row = await this.get(`SELECT * FROM batch_note_sessions WHERE user_id = ?`, [userId]);
+        if (!row) return null;
+        return {
+            userId: row.user_id,
+            movieIds: JSON.parse(row.movie_ids),
+            createdAt: row.created_at
+        };
+    }
+
+    async deleteBatchNoteSession(userId) {
+        await this.run(`DELETE FROM batch_note_sessions WHERE user_id = ?`, [userId]);
     }
 
     // === MÉTHODES POUR LES FILMS ===

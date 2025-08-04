@@ -9,6 +9,8 @@ module.exports = {
         .setDescription('Noter en série tous les films non notés par vous'),
 
     async execute(interaction) {
+        // Nettoyage périodique des sessions expirées (plus d'1h)
+        await databaseManager.cleanupOldBatchNoteSessions(60);
         const userId = interaction.user.id;
         // Récupérer tous les films non notés ET non vus par l'utilisateur, triés par ordre d'ajout
         const movies = await databaseManager.getUnratedUnwatchedMoviesByUser(userId);
@@ -23,14 +25,31 @@ module.exports = {
                 flags: MessageFlags.Ephemeral
             });
         }
-        // Stocker la liste des films à noter dans une variable d'état (en mémoire ou base selon infra)
-        // Pour simplicité, on encode la liste dans le customId du bouton "passer" (limité à 100 films max)
+        // Stocker la liste temporaire en base
+        const movieIds = movies.slice(0, 100).map(m => m.id);
+        await databaseManager.createBatchNoteSession(userId, movieIds);
         await this.showNextMovie(interaction, userId, movies, 0);
     },
 
     async showNextMovie(interaction, userId, movies, index) {
-        if (index >= movies.length) {
-            // Si c'est un bouton, update le message pour le vider et désactiver les composants
+        // On récupère la session temporaire
+        const session = await databaseManager.getBatchNoteSession(userId);
+        if (!session || !session.movieIds || session.movieIds.length === 0) {
+            // Session expirée ou supprimée
+            return await interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor('#00b894')
+                    .setTitle('✅ Fin de la notation')
+                    .setDescription('Session expirée ou terminée.')
+                    .setTimestamp()
+                ],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        const movieIds = session.movieIds;
+        if (index >= movieIds.length) {
+            // Fin de la session, on supprime la session temporaire
+            await databaseManager.deleteBatchNoteSession(userId);
             if (typeof interaction.isButton === 'function' && interaction.isButton()) {
                 return await interaction.update({
                     embeds: [new EmbedBuilder()
@@ -54,11 +73,14 @@ module.exports = {
                 });
             }
         }
-        const movie = movies[index];
-        // Reprendre le menu de noter-envie
+        const movieId = movieIds[index];
+        const movie = movies.find(m => m.id === movieId);
+        // Afficher la progression dans le titre
+        const total = movieIds.length;
+        const current = index + 1;
         const embed = new EmbedBuilder()
             .setColor('#9932CC')
-            .setTitle('💜 Noter votre envie de regarder')
+            .setTitle(`💜 Noter votre envie de regarder (${current}/${total})`)
             .setDescription(`**${movie.title}**`)
             .setTimestamp();
         if (movie.year) {
@@ -126,24 +148,29 @@ module.exports = {
     // Handler pour les boutons de note
     async handleBatchDesireRating(interaction) {
         // customId: batch_desire_{movieId}_{rating}_{userId}_{index}
-        const [, , movieId, rating, userId, index] = interaction.customId.split('_');
+        const parts = interaction.customId.split('_');
+        const movieId = parts[2];
+        const rating = parts[3];
+        const userId = parts[4];
+        const index = parseInt(parts[5]);
         if (interaction.user.id !== userId) {
             return await interaction.reply({ content: 'Seul l\'utilisateur ayant lancé la commande peut noter.', ephemeral: true });
         }
         await databaseManager.rateMovieDesire(parseInt(movieId), userId, parseInt(rating));
-        // Récupérer la liste des films non notés (pour robustesse, on relit la liste)
         const movies = await databaseManager.getUnratedUnwatchedMoviesByUser(userId);
-        await this.showNextMovie(interaction, userId, movies, parseInt(index) + 1);
+        await this.showNextMovie(interaction, userId, movies, index + 1);
     },
 
     // Handler pour le bouton passer
     async handleBatchSkip(interaction) {
         // customId: batch_skip_{userId}_{index}
-        const [, , userId, index] = interaction.customId.split('_');
+        const parts = interaction.customId.split('_');
+        const userId = parts[2];
+        const index = parseInt(parts[3]);
         if (interaction.user.id !== userId) {
             return await interaction.reply({ content: 'Seul l\'utilisateur ayant lancé la commande peut passer.', ephemeral: true });
         }
         const movies = await databaseManager.getUnratedUnwatchedMoviesByUser(userId);
-        await this.showNextMovie(interaction, userId, movies, parseInt(index) + 1);
+        await this.showNextMovie(interaction, userId, movies, index + 1);
     }
 };

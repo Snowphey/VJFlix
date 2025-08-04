@@ -187,8 +187,6 @@ module.exports = {
     async getMovieRecommendations(userIds) {
         // Récupérer tous les films non vus
         const allUnwatched = await databaseManager.getUnwatchedMovies(0, 200);
-        // Récupérer toutes les envies pour ces films et ces users
-        const movieIdSet = new Set(allUnwatched.map(m => m.id));
         // Map movieId -> { movie, ratings: [ { userId, desire_rating } ] }
         const movieMap = new Map();
         for (const movie of allUnwatched) {
@@ -204,66 +202,26 @@ module.exports = {
             }
         }
 
-        // Catégoriser les films
-        const allCount = userIds.length;
-        const allParticipants = [];
-        const someParticipants = [];
-        const noDesire = [];
-        for (const { movie, ratings } of movieMap.values()) {
-            // Pour ce film, combien de participants ont une envie ?
-            const userRated = new Set(ratings.map(r => r.userId));
-            if (userRated.size === allCount && allCount > 0) {
-                // Tous les participants ont une envie
-                allParticipants.push({ movie, ratings });
-            } else if (userRated.size > 0) {
-                // Au moins un participant a une envie
-                someParticipants.push({ movie, ratings });
-            } else {
-                // Personne n'a d'envie
-                noDesire.push({ movie, ratings: [] });
-            }
-        }
 
-        // Trier chaque catégorie par rating moyen décroissant
-        function avg(ratings) {
+        // Calculer la somme des notes pour chaque film (0 si aucune note)
+        function sumRatings(ratings) {
             if (!ratings.length) return 0;
-            return ratings.reduce((a, b) => a + b.desire_rating, 0) / ratings.length;
-        }
-        allParticipants.sort((a, b) => avg(b.ratings) - avg(a.ratings));
-        // Trier d'abord par nombre de participants ayant noté, puis par moyenne des envies
-        someParticipants.sort((a, b) => {
-            const countDiff = b.ratings.length - a.ratings.length;
-            if (countDiff !== 0) return countDiff;
-            return avg(b.ratings) - avg(a.ratings);
-        });
-        // Les non-désirés : random
-        noDesire.sort(() => Math.random() - 0.5);
-
-        // Prendre les 5 premiers dans l'ordre des catégories
-        const selected = [];
-        for (const arr of [allParticipants, someParticipants, noDesire]) {
-            for (const entry of arr) {
-                if (selected.length < 5) selected.push(entry);
-            }
+            return ratings.reduce((a, b) => a + b.desire_rating, 0);
         }
 
-        // Pour chaque film sélectionné, préparer la légende
+        // Trier tous les films par somme décroissante
+        const allMovies = Array.from(movieMap.values());
+        allMovies.sort((a, b) => sumRatings(b.ratings) - sumRatings(a.ratings));
+
+        // Prendre les 5 premiers
+        const selected = allMovies.slice(0, 5);
+
+        // Pour chaque film sélectionné, préparer la légende (plus de critère, juste la note)
         const result = selected.map((entry, idx) => {
             const { movie, ratings } = entry;
-            let legend = '';
-            if (allParticipants.includes(entry)) {
-                legend = `🎯 Tous les participants ont envie de voir ce film`;
-            } else if (someParticipants.includes(entry)) {
-                // Qui ?
-                const users = ratings.map(r => `<@${r.userId}>`).join(', ');
-                legend = `⚡ Au moins un participant a envie de voir ce film (${users})`;
-            } else {
-                legend = `📋 Film non vu (plus d'envie pour recommander)`;
-            }
             return {
                 idx: idx + 1,
                 title: movie.title,
-                legend,
                 ratings,
                 year: movie.year,
                 director: movie.director,
@@ -274,12 +232,8 @@ module.exports = {
         // Liste des participants
         const participantsMention = userIds.map(id => `<@${id}>`).join(', ');
 
-        // Générer le texte final avec intro, légende et catégories
-        let text = `Voici les 5 recommandations, classées par priorité de critère :\n`;
-        text += `__Légende__\n`;
-        text += `🎯 Tous les participants\n`;
-        text += `⚡ Au moins un participant\n`;
-        text += `📋 Non vus aléatoires\n`;
+        // Générer le texte final (plus de légende ni de critère)
+        let text = `Voici les 5 recommandations, classées par la somme des notes des participants :\n`;
 
         for (const entry of result) {
             const rank = entry.idx;
@@ -289,22 +243,21 @@ module.exports = {
             else if (rank === 3) medal = '🥉';
             else medal = `**${rank}.**`;
 
-            // Calcul des étoiles et votes
-            let avg = 0, count = 0, stars = '';
+            // Calcul des étoiles, votes et somme
+            let avgRating = 0, count = 0, stars = '', sum = 0;
             if (entry.ratings && entry.ratings.length) {
-                avg = entry.ratings.reduce((a, b) => a + b.desire_rating, 0) / entry.ratings.length;
+                sum = entry.ratings.reduce((a, b) => a + b.desire_rating, 0);
+                avgRating = sum / entry.ratings.length;
                 count = entry.ratings.length;
-                stars = EmbedUtils.getDesireStars(avg);
+                stars = EmbedUtils.getDesireStars(avgRating);
             }
-            let ratingStr = count > 0 ? `${stars} ${avg.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''})` : '';
+            let ratingStr = count > 0 ? `${stars} ${avgRating.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''}, total : ${sum})` : 'Aucune note';
 
             text += `\n${medal} **${entry.title}**`;
             if (entry.year) text += ` (${entry.year})`;
-            text += `\n${entry.legend}`;
-            text += '\n';
-            if (ratingStr) text += `${ratingStr}\n`;
+            text += `\n${ratingStr}`;
             if (entry.genre && entry.genre.length > 0) {
-                text += `*${entry.genre.slice(0, 3).join(', ')}*\n`;
+                text += `\n*${entry.genre.slice(0, 3).join(', ')}*`;
             }
             text += '\n';
         }
