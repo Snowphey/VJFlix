@@ -375,23 +375,6 @@ module.exports = {
 
         // Boutons d'action avec toggle vu/non-vu
         const row = new ActionRowBuilder();
-        if (result.movie.watched) {
-            row.addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`mark_unwatched_ajouter_${result.movie.id}`)
-                    .setLabel('Marquer comme non vu')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('👁️')
-            );
-        } else {
-            row.addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`mark_watched_ajouter_${result.movie.id}`)
-                    .setLabel('Marquer comme vu')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅')
-            );
-        }
         row.addComponents(
             new ButtonBuilder()
                 .setCustomId(`desire_quick_${result.movie.id}`)

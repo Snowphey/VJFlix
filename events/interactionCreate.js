@@ -82,18 +82,7 @@ module.exports = {
             // === HANDLERS POUR MARQUER VU/NON VU ===
             } else if (interaction.customId.startsWith('mark_watched_')) {
                 // Routing explicite selon le customId
-                if (interaction.customId.startsWith('mark_watched_ajouter_')) {
-                    const ajouterFilmCommand = require('../commands/films/ajouter-film.js');
-                    try {
-                        await ajouterFilmCommand.handleMarkWatched(interaction);
-                    } catch (error) {
-                        console.error('Erreur lors du marquage comme vu (ajouter):', error);
-                        await interaction.reply({ 
-                            content: 'Une erreur est survenue lors du marquage du film.', 
-                            flags: MessageFlags.Ephemeral 
-                        });
-                    }
-                } else if (interaction.customId.startsWith('mark_watched_chercher_')) {
+                if (interaction.customId.startsWith('mark_watched_chercher_')) {
                     const chercherFilmCommand = require('../commands/films/chercher-film.js');
                     try {
                         await chercherFilmCommand.handleMarkWatched(interaction);
@@ -118,18 +107,7 @@ module.exports = {
                     }
                 }
             } else if (interaction.customId.startsWith('mark_unwatched_')) {
-                if (interaction.customId.startsWith('mark_unwatched_ajouter_')) {
-                    const ajouterFilmCommand = require('../commands/films/ajouter-film.js');
-                    try {
-                        await ajouterFilmCommand.handleMarkUnwatched(interaction);
-                    } catch (error) {
-                        console.error('Erreur lors du marquage comme non vu (ajouter):', error);
-                        await interaction.reply({ 
-                            content: 'Une erreur est survenue lors du marquage du film.', 
-                            flags: MessageFlags.Ephemeral 
-                        });
-                    }
-                } else if (interaction.customId.startsWith('mark_unwatched_chercher_')) {
+                if (interaction.customId.startsWith('mark_unwatched_chercher_')) {
                     const chercherFilmCommand = require('../commands/films/chercher-film.js');
                     try {
                         await chercherFilmCommand.handleMarkUnwatched(interaction);
