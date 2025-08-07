@@ -382,6 +382,8 @@ module.exports = {
                         await watchpartyCommand.handleCancel(interaction);
                     } else if (interaction.customId === 'watchparty_reopen') {
                         await watchpartyCommand.handleReopenWatchparty(interaction);
+                    } else if (interaction.customId === 'watchparty_prev_page' || interaction.customId === 'watchparty_next_page') {
+                        await watchpartyCommand.handleRecommendationsPagination(interaction);
                     }
                 } catch (error) {
                     console.error('Erreur lors de l\'interaction watchparty:', error);

@@ -32,7 +32,7 @@ module.exports = {
                 { name: '❌ Indisponibles', value: 'Aucun', inline: true },
                 { name: '❓ Peut-être', value: 'Aucun', inline: true }
             )
-            .setFooter({ text: 'Cliquez sur les boutons pour indiquer votre disponibilité' })
+            .setFooter({ text: 'Cliquez sur les boutons pour indiquer votre disponibilité', iconURL: undefined })
             .setTimestamp();
 
 
@@ -129,6 +129,8 @@ module.exports = {
     },
 
     async handleRecommendations(interaction) {
+        // On stocke la page dans l'interaction pour la pagination
+        interaction.watchpartyPage = 1;
         const messageId = interaction.message.id;
         const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
         if (!watchpartyRow) {
@@ -150,17 +152,35 @@ module.exports = {
                 });
             }
 
-            // Générer les recommandations
-            const { text } = await this.getMovieRecommendations(availableUsers);
+            // Pagination
+            const page = 1;
+            const pageSize = 5;
+            const { text, totalPages } = await this.getMovieRecommendations(availableUsers, page, pageSize);
 
-            // Construire l'embed avec la description textuelle formatée
+            // Construire l'embed avec la description textuelle formatée et stocker l'id du message principal dans le footer
             const embed = new EmbedBuilder()
                 .setColor('#9932CC')
                 .setTitle('🎯 Recommandations pour la watchparty')
-                .setDescription(text);
+                .setDescription(text + `\nPage ${page}/${totalPages}`)
+                .setFooter({ text: `watchparty:${interaction.message.id}` });
+
+            // Boutons de pagination
+            const paginationRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('watchparty_prev_page')
+                    .setLabel('Précédent')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true),
+                new ButtonBuilder()
+                    .setCustomId('watchparty_next_page')
+                    .setLabel('Suivant')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(totalPages <= 1)
+            );
 
             return await interaction.editReply({
                 embeds: [embed],
+                components: [paginationRow],
                 allowedMentions: { users: availableUsers }
             });
         } catch (error) {
@@ -169,6 +189,69 @@ module.exports = {
                 content: 'Erreur lors de la récupération des participants. Veuillez réessayer plus tard.',
             });
         }
+    },
+
+    // Handler pour la pagination des recommandations
+    async handleRecommendationsPagination(interaction) {
+        // Récupérer la page actuelle depuis le message
+        let page = 1;
+        const pageSize = 5;
+        const embed = interaction.message.embeds[0];
+        const pageMatch = embed?.description?.match(/Page (\d+)\/(\d+)/);
+        let totalPages = 1;
+        if (pageMatch) {
+            page = parseInt(pageMatch[1]);
+            totalPages = parseInt(pageMatch[2]);
+        }
+        // Déterminer le bouton cliqué
+        if (interaction.customId === 'watchparty_next_page') {
+            if (page < totalPages) page++;
+        } else if (interaction.customId === 'watchparty_prev_page') {
+            if (page > 1) page--;
+        }
+        // Récupérer l'id du message principal depuis le footer
+        let messageId;
+        if (embed.footer && embed.footer.text && embed.footer.text.startsWith('watchparty:')) {
+            messageId = embed.footer.text.replace('watchparty:', '');
+        } else {
+            messageId = interaction.message.id;
+        }
+        const watchpartyRow = await databaseManager.getWatchpartyByMessageId(messageId);
+        if (!watchpartyRow) {
+            return await interaction.reply({
+                content: 'Erreur : données de la watchparty introuvables.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        const participants = JSON.parse(watchpartyRow.participants);
+        const availableUsers = [...participants.available, ...participants.maybe];
+        const result = await this.getMovieRecommendations(availableUsers, page, pageSize);
+        const text = result.text;
+        totalPages = result.totalPages;
+
+        // Mettre à jour l'embed
+        const newEmbed = EmbedBuilder.from(embed)
+            .setDescription(text + `\nPage ${page}/${totalPages}`);
+
+        // Mettre à jour les boutons
+        const paginationRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('watchparty_prev_page')
+                .setLabel('Précédent')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(page <= 1),
+            new ButtonBuilder()
+                .setCustomId('watchparty_next_page')
+                .setLabel('Suivant')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(page >= totalPages)
+        );
+
+        await interaction.update({
+            embeds: [newEmbed],
+            components: [paginationRow],
+            allowedMentions: { users: availableUsers }
+        });
     },
 
     getCriteriaDescription(criteriaUsed, totalParticipants) {
@@ -184,7 +267,7 @@ module.exports = {
         }
     },
 
-    async getMovieRecommendations(userIds) {
+    async getMovieRecommendations(userIds, page = 1, pageSize = 10) {
         // Récupérer tous les films non vus
         const allUnwatched = await databaseManager.getUnwatchedMovies(0, 200);
         // Map movieId -> { movie, ratings: [ { userId, desire_rating } ] }
@@ -202,7 +285,6 @@ module.exports = {
             }
         }
 
-
         // Calculer la somme des notes pour chaque film (0 si aucune note)
         function sumRatings(ratings) {
             if (!ratings.length) return 0;
@@ -213,14 +295,16 @@ module.exports = {
         const allMovies = Array.from(movieMap.values());
         allMovies.sort((a, b) => sumRatings(b.ratings) - sumRatings(a.ratings));
 
-        // Prendre les 5 premiers
-        const selected = allMovies.slice(0, 5);
+        // Pagination
+        const totalPages = Math.max(1, Math.ceil(allMovies.length / pageSize));
+        const startIdx = (page - 1) * pageSize;
+        const selected = allMovies.slice(startIdx, startIdx + pageSize);
 
         // Pour chaque film sélectionné, préparer la légende (plus de critère, juste la note)
         const result = selected.map((entry, idx) => {
             const { movie, ratings } = entry;
             return {
-                idx: idx + 1,
+                idx: startIdx + idx + 1,
                 title: movie.title,
                 ratings,
                 year: movie.year,
@@ -232,8 +316,8 @@ module.exports = {
         // Liste des participants
         const participantsMention = userIds.map(id => `<@${id}>`).join(', ');
 
-        // Générer le texte final (plus de légende ni de critère)
-        let text = `Voici les 5 recommandations, classées par la somme des notes des participants :\n`;
+        // Générer le texte final
+        let text = `Voici les recommandations, classées par la somme des notes des participants :\n`;
 
         for (const entry of result) {
             const rank = entry.idx;
@@ -266,7 +350,7 @@ module.exports = {
         text += `\n👥 Participants pris en compte : `;
         text += participantsMention || 'Aucun';
 
-        return { text, result };
+        return { text, result, totalPages };
     },
 
     async handleEndWatchparty(interaction) {

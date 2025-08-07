@@ -3,7 +3,7 @@ const databaseManager = require('../../utils/databaseManager');
 const EmbedUtils = require('../../utils/embedUtils');
 
 // Helpers for top-envies pagination
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 async function getSortedMoviesWithDesire() {
     // Récupérer tous les films non vus
@@ -14,22 +14,20 @@ async function getSortedMoviesWithDesire() {
         const ratings = await databaseManager.getMovieDesireRatings(movie.id);
         if (!ratings || ratings.length === 0) continue;
         const count = ratings.length;
-        const average = ratings.reduce((sum, r) => sum + r.desire_rating, 0) / count;
+        const sum = ratings.reduce((acc, r) => acc + r.desire_rating, 0);
+        const average = sum / count;
         moviesWithDesire.push({
             ...movie,
             desireRating: {
                 average,
-                count
+                count,
+                sum
             },
             ratings // pour affichage des votants
         });
     }
-    // Tri : d'abord par nombre de votes décroissant, puis par moyenne décroissante
-    moviesWithDesire.sort((a, b) => {
-        const countDiff = b.desireRating.count - a.desireRating.count;
-        if (countDiff !== 0) return countDiff;
-        return b.desireRating.average - a.desireRating.average;
-    });
+    // Tri par somme des votes décroissante (comme les recommandations de watchparty)
+    moviesWithDesire.sort((a, b) => b.desireRating.sum - a.desireRating.sum);
     return moviesWithDesire;
 }
 
@@ -50,8 +48,9 @@ function generateEmbed(moviesWithDesire, page) {
         const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**${rank}.**`;
         const avg = movie.desireRating.average;
         const count = movie.desireRating.count;
+        const sum = movie.desireRating.sum;
         const stars = EmbedUtils.getDesireStars(avg);
-        let ratingStr = `${stars} ${avg.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''})`;
+        let ratingStr = `${stars} ${avg.toFixed(1)}/5 (${count} vote${count > 1 ? 's' : ''}, total : ${sum})`;
         description += `${medal} **${movie.title}** ${movie.year ? `(${movie.year})` : ''}\n`;
         description += `${ratingStr}\n`;
         if (movie.ratings && movie.ratings.length > 0) {
