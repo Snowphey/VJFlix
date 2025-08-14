@@ -13,14 +13,6 @@ module.exports = {
 
     async execute(interaction) {
         const date = interaction.options.getString('date');
-        // Vérifier s'il existe déjà une watchparty ouverte dans ce salon
-        const openWatchparty = await databaseManager.getOpenWatchpartyByChannel(interaction.channelId);
-        if (openWatchparty) {
-            return await interaction.reply({
-                content: '❌ Il y a déjà une watchparty en cours dans ce salon. Merci de la finaliser ou supprimer avant d\'en créer une nouvelle.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
 
         // Créer l'embed principal
         const embed = new EmbedBuilder()
@@ -363,12 +355,6 @@ module.exports = {
                 flags: MessageFlags.Ephemeral
             });
         }
-        if (watchpartyRow.organizer !== interaction.user.id) {
-            return await interaction.reply({
-                content: 'Seul l\'organisateur peut finaliser la watchparty.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
 
         // Afficher la confirmation
         const confirmRow = new ActionRowBuilder().addComponents(
@@ -383,8 +369,7 @@ module.exports = {
         );
         await interaction.reply({
             content: 'Êtes-vous sûr de vouloir finaliser la watchparty ? Vous pourrez la rouvrir plus tard si besoin',
-            components: [confirmRow],
-            flags: MessageFlags.Ephemeral
+            components: [confirmRow]
         });
     },
 
@@ -400,29 +385,23 @@ module.exports = {
                 flags: MessageFlags.Ephemeral
             });
         }
-        if (watchpartyRow.organizer !== interaction.user.id) {
-            return await interaction.reply({
-                content: 'Seul l\'organisateur peut rouvrir la watchparty.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
         if (watchpartyRow.isOpen) {
             return await interaction.reply({
                 content: 'La watchparty est déjà ouverte.',
                 flags: MessageFlags.Ephemeral
             });
         }
-        // Vérifier s'il existe déjà une autre watchparty ouverte dans ce salon
-        const openWatchparty = await databaseManager.getOpenWatchpartyByChannel(interaction.channelId);
-        if (openWatchparty && openWatchparty.messageId !== messageId) {
-            return await interaction.reply({
-                content: '❌ Il y a déjà une autre watchparty ouverte dans ce salon. Merci de la finaliser ou supprimer avant d\'en rouvrir une autre.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
         await databaseManager.reopenWatchparty(messageId, new Date().toISOString());
         // Réactiver les bons boutons sur le message principal
         const originalMsg = await interaction.channel.messages.fetch(messageId);
+
+        // Réépingler le message principal
+        try {
+            await originalMsg.pin();
+        } catch (e) {
+            console.error('Erreur lors du réépinglage du message de watchparty:', e);
+        }
+
         const enabledComponents = [
             this.getWatchpartyPollRow(),
             this.getWatchpartyActionRow(true)
@@ -511,7 +490,6 @@ module.exports = {
         await interaction.reply({
             content: 'Êtes-vous sûr de vouloir supprimer la watchparty ? Cette action est irréversible.',
             components: [confirmRow],
-            flags: MessageFlags.Ephemeral
         });
     },
     // Handler pour la confirmation de finalisation
@@ -528,14 +506,27 @@ module.exports = {
         await databaseManager.closeWatchparty(messageId, new Date().toISOString());
         // Ne pas toucher à l'embed, seulement désactiver les bons boutons
         const originalMsg = await interaction.channel.messages.fetch(messageId);
+
+        // Désépingler le message principal
+        try {
+            await originalMsg.unpin();
+        } catch (e) {
+            console.error('Erreur lors du désépinglage du message de watchparty:', e);
+        }
+
         const disabledComponents = originalMsg.components.map(row => {
             const newRow = new ActionRowBuilder();
             row.components.forEach(component => {
                 if (component.type === ComponentType.Button) {
                     let btn = ButtonBuilder.from(component).setDisabled(true);
-                    // Remplacer le bouton Finaliser par Rouvrir si c'est l'organisateur
-                    if (btn.data.custom_id === 'watchparty_end' && watchpartyRow.organizer === interaction.user.id) {
+                    // Remplacer le bouton Finaliser par Rouvrir
+                    if (btn.data.custom_id === 'watchparty_end') {
                         btn = btn.setCustomId('watchparty_reopen').setLabel('Rouvrir la watchparty').setStyle(ButtonStyle.Success).setEmoji('🔄').setDisabled(false);
+                    }
+
+                    // On laisse la suppression possible pour l'organisateur
+                    if (btn.data.custom_id === 'watchparty_delete') {
+                        btn.setDisabled(false);
                     }
                     newRow.addComponents(btn);
                 }
