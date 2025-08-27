@@ -45,8 +45,7 @@ Bot Discord pour organiser des watchparties de films, gérer des listes de visio
    - `Send Messages`
    - `Use Slash Commands`
    - `Embed Links`
-   - `Read Message History`
-   - `Manage Messages` (pour épingler les messages)
+   - `Pin Messages`
 
 5. **Première utilisation**
    - Démarrez le bot avec `npm start`
